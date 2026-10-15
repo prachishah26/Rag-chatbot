@@ -1,0 +1,76 @@
+services:
+  app:
+    build: .
+    container_name: laravel-rag-app
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/www/html/database/database.sqlite
+      QUEUE_CONNECTION: database
+      OLLAMA_BASE_URL: http://ollama:11434
+      QDRANT_URL: http://qdrant:6333
+      TEI_EMBEDDINGS_URL: http://embeddings:80
+      TEI_RERANKER_URL: http://reranker:80
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - qdrant
+      - ollama
+      - embeddings
+      - reranker
+
+  worker:
+    build: .
+    container_name: laravel-rag-worker
+    command: php artisan queue:work --tries=2 --timeout=900
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/www/html/database/database.sqlite
+      QUEUE_CONNECTION: database
+      OLLAMA_BASE_URL: http://ollama:11434
+      QDRANT_URL: http://qdrant:6333
+      TEI_EMBEDDINGS_URL: http://embeddings:80
+      TEI_RERANKER_URL: http://reranker:80
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - qdrant
+      - ollama
+      - embeddings
+      - reranker
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    command: --model-id BAAI/bge-small-en-v1.5 --auto-truncate
+    volumes:
+      - tei_models:/data
+
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    command: --model-id cross-encoder/ms-marco-MiniLM-L-6-v2 --auto-truncate
+    volumes:
+      - tei_models:/data
+
+volumes:
+  qdrant_storage:
+  ollama_storage:
+  tei_models:

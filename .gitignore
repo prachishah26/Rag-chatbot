@@ -1,0 +1,57 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Environment / secrets
+/.env
+/.env.backup
+/.env.production
+.env.testing
+/auth.json
+
+# Build output
+/public/build
+/public/hot
+/public/storage
+
+# Laravel runtime / caches
+/bootstrap/cache/*.php
+/storage/*.key
+/storage/pail
+/storage/app/private/*
+/storage/app/public/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+/storage/logs/*
+
+# Local databases
+/database/*.sqlite
+/database/*.sqlite-journal
+
+# Testing / coverage
+.phpunit.result.cache
+/.phpunit.cache
+/coverage
+/build/coverage
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# IDE / editor
+/.idea
+/.vscode
+/.fleet
+/.nova
+/.zed
+*.swp
+
+# Claude Code local settings
+/.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,18 @@
+{
+  "document": "iMac_PER_Oct2024.pdf",
+  "description": "Apple iMac Product Environmental Report: 12 brochure pages with tables, call-outs, a bar chart and numbered endnotes.",
+  "questions": [
+    {"question": "What was the baseline emissions figure for iMac, and how many kilograms did the reductions remove?", "evidence": ["445 kg"], "expect": ["445", "99"]},
+    {"question": "What is the total carbon footprint of iMac?", "evidence": ["346 kg"], "expect": ["346"]},
+    {"question": "How much recycled content does iMac contain?", "evidence": ["more than 15 percent recycled content"], "expect": ["15"]},
+    {"question": "How much less energy does iMac use than the ENERGY STAR requirement?", "evidence": ["58 percent less energy"], "expect": ["58"]},
+    {"question": "What share of the iMac fiber packaging is recycled content?", "evidence": ["76 percent recycled content"], "expect": ["76"]},
+    {"question": "What is the iMac's power consumption in sleep mode at 115V?", "evidence": ["0.57W"], "expect": ["0.57"]},
+    {"question": "What standard is used to verify the Zero Waste to Landfill claim, and what diversion rate does it require?", "evidence": ["UL 2799"], "expect": ["2799", "90"]},
+    {"question": "Does the recycled copper in the thermal module apply to every iMac model?", "evidence": ["four ports) only"], "expect": ["four", "port"]},
+    {"question": "What share of iMac's carbon footprint comes from production?", "evidence": ["Production | 50%"], "expect": ["50"]},
+    {"question": "How much of the plastic in iMac is recycled, and in how many components?", "evidence": ["recycled plastic in 13 components"], "expect": ["50", "13"]},
+    {"question": "What is the carbon footprint of the iPhone 16?", "out_of_scope": true},
+    {"question": "How much does the iMac cost?", "out_of_scope": true}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "document": "GEP-Jun-2026.pdf",
+  "description": "World Bank Global Economic Prospects, June 2026: 200 pages, four chapters, six regions that all talk about growth forecasts.",
+  "questions": [
+    {"question": "What is the global growth forecast for 2026?", "evidence": ["Global growth is projected to slow to 2.5 percent in 2026"], "expect": ["2.5"]},
+    {"question": "What is the growth outlook for South Asia in this report?", "evidence": ["Growth in SAR is expected to soften to 6.3 percent"], "expect": ["6.3"]},
+    {"question": "How fast is South Asia expected to grow on average in 2027-28?", "evidence": ["average rate of 7 percent per year"], "expect": ["7"]},
+    {"question": "What growth is projected for East Asia and Pacific in 2026?", "evidence": ["Growth in EAP is projected to moderate to 4.2 percent"], "expect": ["4.2"]},
+    {"question": "What is the 2026 growth forecast for Europe and Central Asia?", "evidence": ["to 2.1 percent in 2026"], "expect": ["2.1"]},
+    {"question": "What growth does the report project for Latin America and the Caribbean in 2026?", "evidence": ["Growth in LAC is projected to slow to 2.2 percent"], "expect": ["2.2"]},
+    {"question": "What is the growth forecast for the Middle East and North Africa region in 2026?", "evidence": ["expected to weaken to 1.6 percent in 2026"], "expect": ["1.6"]},
+    {"question": "What growth is forecast for Sub-Saharan Africa in 2026?", "evidence": ["Growth in SSA is forecast to edge down to 4 percent in 2026"], "expect": ["4"]},
+    {"question": "What is Pakistan's growth forecast for fiscal year 2026/27?", "evidence": ["Pakistan 1 |"], "expect": ["3.2"]},
+    {"question": "What Brent crude oil price does the report assume for 2026?", "evidence": ["averaging $94/barrel"], "expect": ["94"]},
+    {"question": "According to Chapter 3, how much does a 1 percentage point rise in the debt-to-GDP ratio add to sovereign spreads when debt is about 80 percent of GDP?", "evidence": ["about 26 basis points"], "expect": ["26"]},
+    {"question": "In Chapter 4, what is the average correlation between cyclical government spending and GDP for commodity exporters?", "evidence": ["0.46 for commodity exporters"], "expect": ["0.46"]},
+    {"question": "What was South Asia's growth in 2031?", "out_of_scope": true},
+    {"question": "What is the population of Canada?", "out_of_scope": true}
+  ]
+}

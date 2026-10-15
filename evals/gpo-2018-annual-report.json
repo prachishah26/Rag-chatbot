@@ -1,0 +1,20 @@
+{
+  "document": "GPO-Anual-report.pdf",
+  "description": "U.S. Government Publishing Office 2018 Annual Report: plain two-column prose with numbers inside sentences.",
+  "questions": [
+    {"question": "What was GPO's total revenue in FY 2018?", "evidence": ["874.5 million"], "expect": ["874.5"]},
+    {"question": "What was GPO's net income in FY 2018?", "evidence": ["20.4 million"], "expect": ["20.4"]},
+    {"question": "How many employees did GPO have at the end of FY 2018?", "evidence": ["1,737"], "expect": ["1,737"]},
+    {"question": "How many depository libraries are there nationwide?", "evidence": ["1,133"], "expect": ["1,133"]},
+    {"question": "How many Federal Register pages were produced?", "evidence": ["95,955,976"], "expect": ["95,955,976"]},
+    {"question": "When was the annual report sent to Congress?", "evidence": ["April 25, 2019"], "expect": ["April 25, 2019"]},
+    {"question": "How many jobs did GPO procure nationwide?", "evidence": ["84,111"], "expect": ["84,111"]},
+    {"question": "How many secure credentials did GPO produce?", "evidence": ["5,014,573"], "expect": ["5,014,573"]},
+    {"question": "How many years in a row has GPO received a clean audit opinion?", "evidence": ["22nd consecutive"], "expect": ["22"]},
+    {"question": "How has GPO's workforce changed since 1980?", "evidence": ["6,450"], "expect": ["6,450", "1,737"]},
+    {"question": "What was GPO's revenue in FY 2020?", "out_of_scope": true},
+    {"question": "What was GPO's net income in 2019?", "out_of_scope": true},
+    {"question": "Who is the CEO of Microsoft?", "out_of_scope": true},
+    {"question": "How many FDsys searches were there in FY 2025?", "out_of_scope": true}
+  ]
+}

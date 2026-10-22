@@ -39,12 +39,17 @@ class OllamaService implements ChatModel
 
     public function chat(string $question, string $context): string
     {
+        return $this->complete([
+            ['role' => 'system', 'content' => AnswerPrompt::INSTRUCTIONS],
+            ['role' => 'user', 'content' => AnswerPrompt::userMessage($question, $context)],
+        ]);
+    }
+
+    public function complete(array $messages): string
+    {
         $response = $this->client()->post('/api/chat', [
             'model' => config('rag.ollama.chat_model'),
-            'messages' => [
-                ['role' => 'system', 'content' => AnswerPrompt::INSTRUCTIONS],
-                ['role' => 'user', 'content' => AnswerPrompt::userMessage($question, $context)],
-            ],
+            'messages' => $messages,
             'options' => [
                 'num_ctx' => (int) config('rag.ollama.num_ctx'),
                 'temperature' => 0,

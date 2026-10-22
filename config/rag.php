@@ -13,6 +13,8 @@ return [
     // Which model writes answers: "ollama" (local) or "openai" (any OpenAI-compatible API).
     'chat' => [
         'driver' => env('RAG_CHAT_DRIVER', 'ollama'),
+        // Earlier messages of a conversation used to understand follow-ups and small talk (0 = none).
+        'history_messages' => (int) env('RAG_HISTORY_MESSAGES', 6),
     ],
 
     'openai_compat' => [

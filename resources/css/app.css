@@ -38,7 +38,7 @@ th, td { text-align: left; padding: 13px; border-bottom: 1px solid #eef0f3; }
 .message { max-width: 82%; padding: 14px 16px; border-radius: 14px; background: #f3f4f6; line-height: 1.55; }
 .message.user { align-self: flex-end; background: #e0e7ff; }
 .message.assistant { align-self: flex-start; }
-.message strong { display: block; margin-bottom: 5px; }
+.message > strong { display: block; margin-bottom: 5px; }
 .message details { margin-top: 10px; font-size: 13px; }
 .quote { margin: 8px 0; }
 blockquote.quote { padding-left: 12px; border-left: 3px solid #c7d2fe; }
@@ -54,4 +54,26 @@ small { color: #667085; }
 @media (max-width: 700px) {
     .upload-form, .chat-form { flex-direction: column; align-items: stretch; }
     .message { max-width: 95%; }
+}
+.nav-logout { display: flex; gap: 12px; align-items: center; margin: 0; color: #d1d5db; }
+.link-button { background: none; padding: 0; color: #d1d5db; }
+.auth-card { max-width: 420px; margin: 40px auto; }
+.auth-card h1 { margin-top: 0; }
+.auth-form { display: flex; flex-direction: column; gap: 14px; margin: 16px 0; }
+.auth-form label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.auth-form input[type=text], .auth-form input[type=email], .auth-form input[type=password] { border: 1px solid #d0d5dd; border-radius: 10px; padding: 10px 12px; font: inherit; }
+.auth-form .checkbox { flex-direction: row; align-items: center; font-weight: 400; }
+.chat-layout { display: grid; grid-template-columns: 240px 1fr; gap: 24px; align-items: start; }
+.chat-sidebar { padding: 16px; }
+.chat-sidebar .button { display: block; text-align: center; margin-bottom: 12px; }
+.conversation-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 560px; overflow-y: auto; }
+.conversation-list a { display: block; padding: 8px 10px; border-radius: 8px; color: #172033; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-list a:hover { background: #f3f4f6; }
+.conversation-list a.active { background: #e0e7ff; font-weight: 600; }
+.chat-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.chat-toolbar h2 { margin: 0; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-toolbar form { margin: 0; }
+@media (max-width: 900px) {
+    .chat-layout { grid-template-columns: 1fr; }
+    .conversation-list { max-height: 200px; }
 }

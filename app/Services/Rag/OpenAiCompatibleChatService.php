@@ -12,12 +12,17 @@ class OpenAiCompatibleChatService implements ChatModel
 
     public function chat(string $question, string $context): string
     {
+        return $this->complete([
+            ['role' => 'system', 'content' => AnswerPrompt::INSTRUCTIONS],
+            ['role' => 'user', 'content' => AnswerPrompt::userMessage($question, $context)],
+        ]);
+    }
+
+    public function complete(array $messages): string
+    {
         return $this->client->complete([
             'model' => config('rag.openai_compat.model'),
-            'messages' => [
-                ['role' => 'system', 'content' => AnswerPrompt::INSTRUCTIONS],
-                ['role' => 'user', 'content' => AnswerPrompt::userMessage($question, $context)],
-            ],
+            'messages' => $messages,
             'temperature' => 0,
         ]);
     }

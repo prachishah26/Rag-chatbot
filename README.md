@@ -79,8 +79,18 @@ A Retrieval Augmented Generation application built with Laravel 13, Qdrant and l
 1. Start the containers: `docker compose up -d qdrant embeddings reranker`
 2. Start the app: `php artisan serve`
 3. In a second terminal, start the worker that indexes uploads: `php artisan queue:work --tries=2 --timeout=900`
-4. Upload PDF or TXT files at http://127.0.0.1:8000/documents and wait for status **completed**.
-5. Ask questions at http://127.0.0.1:8000/chat. `RAG_TEST_QUESTIONS.md` lists questions with expected answers for the three test documents.
+4. Create an account at http://127.0.0.1:8000/register (or log in at `/login`). Every page needs a signed-in user.
+5. Upload PDF or TXT files at http://127.0.0.1:8000/documents and wait for status **completed**.
+6. Ask questions at http://127.0.0.1:8000/chat. `RAG_TEST_QUESTIONS.md` lists questions with expected answers for the three test documents.
+
+Each user's chats are saved as conversations (`conversations` and `messages` tables, with the answer's sources and quotes). The chat sidebar lists your earlier conversations; open one to see its messages and keep asking in it. Users only ever see their own conversations. Uploaded documents are shared by all users.
+
+Every message first goes to the chat model together with the recent conversation (the last `RAG_HISTORY_MESSAGES` messages, 6 by default), which decides what it is in one short JSON call:
+
+- **Small talk** ("hi", "yes please", "thanks!", "what's my name?") is answered by the chat model from the conversation, without a document search or sources.
+- **Document questions** are rewritten to stand on their own when they are follow-ups ("what about 2024?" becomes "What was GPO revenue in 2024?"), then searched and answered as usual.
+
+If the model's decision can't be read, the message is searched as a document question.
 
 After editing `.env`, restart the queue worker. If you ever ran `php artisan config:cache`, also run `php artisan config:clear`.
 
@@ -167,6 +177,7 @@ app/Services/Rag/
 │                  CrossEncoderReranker, Retriever
 ├── Evaluation/    EvalSet, EvalQuestion, Scorer
 ├── DocumentParser, ColumnSplitter, TableParser, QdrantService
+├── Conversation/  ChatAssistant, MessageRouter, ChatHistory
 ├── RagService, AnswerPrompt, QuoteExtractor
 └── OllamaService, OpenAiCompatibleClient, OpenAiCompatibleChatService
 ```
@@ -178,3 +189,4 @@ app/Services/Rag/
 - GraphRAG for questions across many documents
 - LLM-as-judge answer evaluation
 - OCR for scanned PDFs
+- Per-user documents (all signed-in users search the same knowledge base)

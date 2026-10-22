@@ -11,8 +11,18 @@
     <div class="nav-inner">
         <a href="{{ route('documents.index') }}" class="brand">Laravel RAG</a>
         <div class="nav-links">
-            <a href="{{ route('documents.index') }}">Documents</a>
-            <a href="{{ route('chat.index') }}">Chat</a>
+            @auth
+                <a href="{{ route('documents.index') }}">Documents</a>
+                <a href="{{ route('chat.index') }}">Chat</a>
+                <form method="POST" action="{{ route('logout') }}" class="nav-logout">
+                    @csrf
+                    <span>{{ auth()->user()->name }}</span>
+                    <button type="submit" class="link-button">Log out</button>
+                </form>
+            @else
+                <a href="{{ route('login') }}">Log in</a>
+                <a href="{{ route('register') }}">Register</a>
+            @endauth
         </div>
     </div>
 </nav>

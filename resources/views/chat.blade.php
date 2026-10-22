@@ -2,27 +2,6 @@
 
 @section('main-class', 'flush')
 
-@section('sidebar')
-<div class="side-section">
-    <a class="button new-chat" href="{{ route('chat.index') }}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-        New chat
-    </a>
-    <div class="side-nav-label">Recent chats</div>
-    <small id="no-conversations" @if($conversations->isNotEmpty()) hidden @endif>Your conversations will appear here.</small>
-    <ul id="conversation-list" class="conversation-list">
-        @foreach($conversations as $item)
-            <li>
-                <a href="{{ route('chat.show', $item->id) }}" title="{{ $item->title }}" @class(['active' => $conversation?->id === $item->id])>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    <span>{{ $item->title }}</span>
-                </a>
-            </li>
-        @endforeach
-    </ul>
-</div>
-@endsection
-
 @section('content')
 <div class="chat-layout">
     <section class="chat-card">
@@ -235,8 +214,11 @@ function addToSidebar(id, title) {
     link.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
     link.appendChild(label);
 
+    const deleteForm = document.getElementById('conversation-delete-template').content.firstElementChild.cloneNode(true);
+    deleteForm.action = `{{ url('/chat') }}/${id}`;
+
     const item = document.createElement('li');
-    item.appendChild(link);
+    item.append(link, deleteForm);
     const list = document.getElementById('conversation-list');
     list.querySelectorAll('a.active').forEach(active => active.classList.remove('active'));
     list.prepend(item);

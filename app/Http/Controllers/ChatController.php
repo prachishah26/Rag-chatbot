@@ -70,13 +70,16 @@ class ChatController extends Controller
     {
         $this->findConversation($request, $conversation)->delete();
 
-        return redirect()->route('chat.index')->with('success', 'Conversation deleted.');
+        // Stay on the current page, unless it was the conversation just deleted.
+        $previous = url()->previous(route('chat.index'));
+        $target = $previous === route('chat.show', $conversation) ? route('chat.index') : $previous;
+
+        return redirect()->to($target)->with('success', 'Conversation deleted.');
     }
 
     private function chatView(Request $request, ?Conversation $conversation): View
     {
         return view('chat', [
-            'conversations' => $request->user()->conversations()->latest('updated_at')->limit(50)->get(),
             'conversation' => $conversation?->load('document'),
             // Documents a new chat can be limited to.
             'documents' => Document::visibleTo($request->user())->searchable()->orderBy('original_name')->get(['id', 'user_id', 'original_name']),

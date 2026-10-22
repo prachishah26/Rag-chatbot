@@ -22,6 +22,9 @@ class Retriever
     // A row label shorter than this ("UK", "Q1") matches too many questions by accident.
     private const MIN_ROW_LABEL_LETTERS = 4;
 
+    // Joining words a row label may hold that the question need not repeat.
+    private const LABEL_STOPWORDS = ['and', 'the', 'for', 'from', 'with', 'per'];
+
     public function __construct(
         private Embedder $embedder,
         private QdrantService $qdrant,
@@ -154,13 +157,42 @@ class Retriever
             // footnote markers are not part of the name.
             $label = trim(preg_replace(['/^[^\pL\pN]+/u', '/(\s+\d+)+$/'], '', $cells[0] ?? ''));
 
-            if (preg_match_all('/\pL/u', $label) >= self::MIN_ROW_LABEL_LETTERS
-                && preg_match('/(?<!\pL)'.preg_quote($label, '/').'(?!\pL)/iu', $question)) {
+            if (preg_match_all('/\pL/u', $label) >= self::MIN_ROW_LABEL_LETTERS && $this->asksFor($question, $label)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Every word of the label appears in the question, in any order and form: "Passports produced"
+     * is asked for by "How many passports did GPO produce?".
+     */
+    private function asksFor(string $question, string $label): bool
+    {
+        $asked = array_flip(array_map(fn (string $word) => $this->stem($word), $this->words($question)));
+        $needed = array_filter($this->words($label), fn (string $word) => !in_array($word, self::LABEL_STOPWORDS, true));
+
+        foreach ($needed as $word) {
+            if (!isset($asked[$this->stem($word)])) {
+                return false;
+            }
+        }
+
+        return $needed !== [];
+    }
+
+    /** @return string[] lower-case words */
+    private function words(string $text): array
+    {
+        return preg_split('/[^\pL\pN]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY);
+    }
+
+    /** "produced", "produces", "produce" → "produc"; crude, but applied alike to both sides. */
+    private function stem(string $word): string
+    {
+        return mb_strlen($word) > 4 ? preg_replace('/(?:ing|ed|es|s|e)$/u', '', $word) : $word;
     }
 
     /** The best children's parents, each once, in the children's order. */

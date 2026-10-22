@@ -344,6 +344,7 @@ a.page-link:hover { background: var(--surface-2); }
 .side-section .side-nav-label { padding-bottom: 0; }
 .side-section small { padding: 0 12px; font-size: 13px; }
 .conversation-list { list-style: none; margin: 0 -4px; padding: 0 4px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; min-height: 0; }
+.conversation-list li { position: relative; }
 .conversation-list a {
     display: flex; align-items: center; gap: 10px;
     padding: 9px 10px; border-radius: 10px;
@@ -355,6 +356,15 @@ a.page-link:hover { background: var(--surface-2); }
 .conversation-list a:hover { background: var(--surface-2); color: var(--text); }
 .conversation-list a.active { background: var(--primary-soft); color: var(--primary-text); font-weight: 600; }
 .conversation-list a.active svg { color: var(--primary); }
+/* The delete button sits over the row's right edge and only shows on hover or keyboard focus. */
+.conversation-delete { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); margin: 0; opacity: 0; transition: opacity .12s; }
+.conversation-delete button { padding: 5px; color: var(--text-subtle); }
+.conversation-delete button:hover { color: var(--danger); background: var(--surface); }
+.conversation-list li:hover .conversation-delete,
+.conversation-list li:focus-within .conversation-delete { opacity: 1; }
+.conversation-list li:hover a,
+.conversation-list li:focus-within a { padding-right: 36px; }
+@media (hover: none) { .conversation-delete { opacity: 1; } .conversation-list a { padding-right: 36px; } }
 
 .chat-card { display: flex; flex-direction: column; height: 100%; padding: 0; margin: 0; overflow: hidden; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
 .chat-toolbar {

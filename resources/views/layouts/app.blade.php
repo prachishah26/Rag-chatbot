@@ -36,7 +36,7 @@
             </a>
         </nav>
 
-        @yield('sidebar')
+        @include('partials.chat-sidebar')
 
         <form method="POST" action="{{ route('logout') }}" class="side-user">
             @csrf

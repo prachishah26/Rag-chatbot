@@ -136,6 +136,41 @@ class ChatTest extends TestCase
             ->assertDontSee('Someone else');
     }
 
+    public function test_sidebar_lists_conversations_on_the_documents_page(): void
+    {
+        $user = User::factory()->create();
+        $conversation = $user->conversations()->create(['title' => 'Visible elsewhere']);
+
+        $this->actingAs($user)->get(route('documents.index'))
+            ->assertOk()
+            ->assertSee('Visible elsewhere')
+            ->assertSee(route('chat.destroy', $conversation->id), false);
+    }
+
+    public function test_deleting_another_conversation_returns_to_the_current_page(): void
+    {
+        $user = User::factory()->create();
+        $conversation = $user->conversations()->create(['title' => 'Old chat']);
+
+        $this->actingAs($user)
+            ->from(route('documents.index'))
+            ->delete(route('chat.destroy', $conversation->id))
+            ->assertRedirect(route('documents.index'));
+
+        $this->assertModelMissing($conversation);
+    }
+
+    public function test_deleting_the_open_conversation_returns_to_a_new_chat(): void
+    {
+        $user = User::factory()->create();
+        $conversation = $user->conversations()->create(['title' => 'Open chat']);
+
+        $this->actingAs($user)
+            ->from(route('chat.show', $conversation->id))
+            ->delete(route('chat.destroy', $conversation->id))
+            ->assertRedirect(route('chat.index'));
+    }
+
     public function test_user_cannot_view_another_users_conversation(): void
     {
         $conversation = $this->conversationWithHistory(User::factory()->create());

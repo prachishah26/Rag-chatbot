@@ -245,6 +245,31 @@ class RetrieverTest extends TestCase
         $this->assertSame([$hits[0], $table, $hits[1]], $result->hits);
     }
 
+    public function test_a_row_label_matches_its_words_in_any_order_and_form(): void
+    {
+        $this->embedder->shouldReceive('embedQuery')->andReturn(self::DENSE);
+        $this->bm25->shouldReceive('encodeQuery')->andReturn(self::SPARSE);
+        $table = $this->tableHit(3, 2, "| Secure credentials produced | 5,014,573 |\n| Passports produced | 15,901,600 |");
+        $hits = [$this->hit(1, 0), $this->hit(2, 1), $table];
+        $this->router->shouldReceive('route')->andReturn([]);
+        $this->qdrant->shouldReceive('hybridSearch')->andReturn($hits);
+
+        $result = $this->retriever()->retrieve('How many passports did GPO produce in FY 2018?');
+
+        $this->assertSame([$hits[0], $table, $hits[1]], $result->hits);
+    }
+
+    public function test_a_row_label_with_a_word_missing_from_the_question_does_not_match(): void
+    {
+        $this->embedder->shouldReceive('embedQuery')->andReturn(self::DENSE);
+        $this->bm25->shouldReceive('encodeQuery')->andReturn(self::SPARSE);
+        $hits = [$this->hit(1, 0), $this->hit(2, 1), $this->tableHit(3, 2, '| Secure credentials produced | 5,014,573 |')];
+        $this->router->shouldReceive('route')->andReturn([]);
+        $this->qdrant->shouldReceive('hybridSearch')->andReturn($hits);
+
+        $this->assertSame($hits, $this->retriever()->retrieve('How many passports did GPO produce?')->hits);
+    }
+
     public function test_a_header_row_label_does_not_promote_a_table(): void
     {
         $this->embedder->shouldReceive('embedQuery')->andReturn(self::DENSE);

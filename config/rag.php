@@ -21,6 +21,11 @@ return [
         'base_url' => env('OPENAI_COMPAT_BASE_URL', 'https://api.groq.com/openai/v1'),
         'api_key' => env('OPENAI_COMPAT_API_KEY'),
         'model' => env('OPENAI_COMPAT_MODEL', 'openai/gpt-oss-120b'),
+        // Comma-separated models tried in order when the one before is rate limited.
+        'fallback_models' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('OPENAI_COMPAT_FALLBACK_MODELS', ''))
+        ))),
         'timeout' => (int) env('OPENAI_COMPAT_TIMEOUT', 60),
         // Seconds to wait in total for a rate limit to clear before giving up.
         'max_wait' => (int) env('OPENAI_COMPAT_MAX_WAIT', 15),

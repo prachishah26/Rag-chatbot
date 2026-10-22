@@ -11,6 +11,7 @@
     {"question": "How many jobs did GPO procure nationwide?", "evidence": ["84,111"], "expect": ["84,111"]},
     {"question": "How many secure credentials did GPO produce?", "evidence": ["5,014,573"], "expect": ["5,014,573"]},
     {"question": "How many years in a row has GPO received a clean audit opinion?", "evidence": ["22nd consecutive"], "expect": ["22"]},
+    {"question": "How many passports did GPO produce in FY 2018?", "evidence": ["Passports produced | 15,901,600"], "expect": ["16", "15,901,600"]},
     {"question": "How has GPO's workforce changed since 1980?", "evidence": ["6,450"], "expect": ["6,450", "1,737"]},
     {"question": "What was GPO's revenue in FY 2020?", "out_of_scope": true},
     {"question": "What was GPO's net income in 2019?", "out_of_scope": true},

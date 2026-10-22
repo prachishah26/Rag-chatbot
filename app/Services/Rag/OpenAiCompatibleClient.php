@@ -64,7 +64,7 @@ class OpenAiCompatibleClient
 
         if ($response->status() === 429) {
             // The provider says which limit was hit (per minute or per day) and when it resets.
-            throw new RuntimeException(sprintf(
+            throw new RateLimitException(sprintf(
                 '%s rate limit reached; wait a moment and try again. %s',
                 $purpose,
                 (string) ($response->json('error.message') ?? '')

@@ -1,7 +1,7 @@
 services:
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: laravel-rag-qdrant
+    container_name: rag-chatbot-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -10,7 +10,7 @@ services:
 
   ollama:
     image: ollama/ollama:latest
-    container_name: laravel-rag-ollama
+    container_name: rag-chatbot-ollama
     ports:
       - "11434:11434"
     volumes:
@@ -19,7 +19,7 @@ services:
   # Local embedding model (BAAI bge-small, 384 dimensions) served by Hugging Face TEI.
   embeddings:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
-    container_name: laravel-rag-embeddings
+    container_name: rag-chatbot-embeddings
     command: --model-id BAAI/bge-small-en-v1.5 --auto-truncate
     ports:
       - "8081:80"
@@ -29,7 +29,7 @@ services:
   # Local cross-encoder (MiniLM) that rereads the top hybrid-search hits.
   reranker:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
-    container_name: laravel-rag-reranker
+    container_name: rag-chatbot-reranker
     command: --model-id cross-encoder/ms-marco-MiniLM-L-6-v2 --auto-truncate
     ports:
       - "8082:80"

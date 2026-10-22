@@ -1,4 +1,4 @@
-# Laravel 13 RAG Chatbot
+# RAG Chatbot
 
 A Retrieval Augmented Generation application built with Laravel 13, Qdrant and local models, following the techniques in the *Advanced RAG Field Guide*: each step of basic RAG is replaced by a small, specific technique, and every technique is measured.
 

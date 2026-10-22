@@ -1,8 +1,8 @@
 {
   "$schema": "https://getcomposer.org/schema.json",
-  "name": "example/laravel13-rag",
+  "name": "example/rag-chatbot",
   "type": "project",
-  "description": "Laravel 13 RAG document chatbot using Ollama and Qdrant.",
+  "description": "RAG document chatbot using Ollama and Qdrant.",
   "require": {
     "php": "^8.3",
     "laravel/framework": "^13.0",

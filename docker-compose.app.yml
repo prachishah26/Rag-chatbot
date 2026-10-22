@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    container_name: laravel-rag-app
+    container_name: rag-chatbot-app
     ports:
       - "8000:8000"
     environment:
@@ -24,7 +24,7 @@ services:
 
   worker:
     build: .
-    container_name: laravel-rag-worker
+    container_name: rag-chatbot-worker
     command: php artisan queue:work --tries=2 --timeout=900
     environment:
       APP_ENV: local

@@ -19,6 +19,11 @@ class User extends Authenticatable
         'password',
     ];
 
+    // Matches the column default, so a just-created user is not an admin before it is reloaded.
+    protected $attributes = [
+        'is_admin' => false,
+    ];
+
     protected $hidden = [
         'password',
         'remember_token',
@@ -29,6 +34,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
         ];
     }
 

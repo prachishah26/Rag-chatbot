@@ -60,6 +60,23 @@ class RagServiceTest extends TestCase
         $this->assertSame(1, $result['sources'][0]['chunk']);
     }
 
+    public function test_a_table_passage_reaches_the_model_with_every_value_labelled(): void
+    {
+        config(['rag.retrieval.max_context_chars' => 16000]);
+        $table = "|  | 2025/26e | 2026/27f |\n| --- | --- | --- |\n| Pakistan 1 | 3.0 | 3.2 |";
+        $hit = $this->hit(7, 0.8, $table);
+        $hit['payload']['type'] = 'table';
+
+        $chat = Mockery::mock(ChatModel::class);
+        $chat->shouldReceive('chat')->once()
+            ->withArgs(fn (string $q, string $context) => str_contains($context, 'Pakistan 1: 2025/26e = 3.0; 2026/27f = 3.2'))
+            ->andReturn('Pakistan is forecast to grow 3.2 percent in 2026/27 [Source 1].');
+
+        $result = (new RagService($this->retriever([$hit]), $chat))->ask('Pakistan growth in 2026/27?');
+
+        $this->assertSame('Pakistan is forecast to grow 3.2 percent in 2026/27.', $result['answer']);
+    }
+
     public function test_generated_answer_is_returned_with_supporting_evidence(): void
     {
         config(['rag.retrieval.max_context_chars' => 16000]);

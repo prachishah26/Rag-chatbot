@@ -16,8 +16,11 @@ class TableParser
     // More consecutive label-like lines than this are prose (lists, headings), not wrapped labels.
     private const MAX_LABEL_RUN = 2;
 
-    // "2025e" / "2026f" mark estimates and forecasts.
-    private const YEAR_CELL = '/^(?:FY\s*)?(?:19|20)\d{2}[ef]?$/u';
+    // "2025e" / "2026f" mark estimates and forecasts; "2026/27f" is a fiscal year.
+    private const YEAR_CELL = '/^(?:FY\s*)?(?:19|20)\d{2}(?:\/\d{2})?[ef]?$/u';
+
+    // A period heading rather than a year as a value: "2026f", "2026/27", "FY2026".
+    private const PERIOD_MARK = '/(?:\/\d{2}|[ef]|^FY.*)$/u';
 
     // A figure may carry a short unit ("0.27W", "346 kg") or mark an estimate ("2025e").
     private const NUMERIC_CELL = '/^(?:[$€£]?\s*\(?[-–]?[\d][\d,]*(?:\.\d+)?%?\)?(?:\s?[a-zA-Z]{1,3}\d?[a-zA-Z]?)?|[$€£]|[—–-])$/u';
@@ -99,6 +102,18 @@ class TableParser
         return true;
     }
 
+    /**
+     * A header row naming periods ("2022/23 2023/24 ..."), e.g. a sub-header partway down a table.
+     * Plain years alone ("| Founded | 1990 | 2010 |") may be data, so a period needs a mark.
+     */
+    public function isPeriodRow(array $cells): bool
+    {
+        $periods = array_filter(array_slice($cells, 1), fn (string $cell) => (bool) preg_match(self::YEAR_CELL, trim($cell))
+            && (bool) preg_match(self::PERIOD_MARK, trim($cell)));
+
+        return $periods !== [] && $this->isHeaderRow($cells);
+    }
+
     /** @return array<int, array<int, string>> rows of cells, padded to equal width */
     public function parse(string $block): array
     {
@@ -118,7 +133,7 @@ class TableParser
             }
 
             if ($pendingLabel !== '') {
-                $this->isNumeric($cells[0])
+                $this->isValue($cells[0])
                     ? array_unshift($cells, $pendingLabel)
                     : $cells[0] = $pendingLabel.' '.$cells[0];
                 $pendingLabel = '';
@@ -142,13 +157,79 @@ class TableParser
         )).' |';
 
         $header = array_shift($rows);
-        $output = [$line($header), $line(array_fill(0, count($header), '---'))];
+        $separator = $line(array_fill(0, count($header), '---'));
+        $output = [$line($header), $separator];
 
-        foreach ($rows as $row) {
+        // A sub-header of periods gets its own separator, so its rows read against it and not
+        // the top header: Pakistan's 3.2 belongs under "2026/27f", not under "2026f".
+        foreach ($rows as $i => $row) {
             $output[] = $line($row);
+            if ($i < count($rows) - 1 && $this->isPeriodRow($row)) {
+                $output[] = $separator;
+            }
         }
 
         return implode("\n", $output);
+    }
+
+    /**
+     * A Markdown table as one line per row with each value named by the header above it
+     * ("Pakistan 1: 2025/26e = 3.0; 2026/27f = 3.2"), so a model reading a wide table cannot
+     * take a value from the wrong column. Lines outside the table are kept; a table whose first
+     * row is data, not a header, is returned unchanged.
+     */
+    public function labelledRows(string $text): string
+    {
+        $lines = explode("\n", $text);
+        $output = [];
+        $header = null;
+
+        foreach ($lines as $i => $line) {
+            if (!str_starts_with(trim($line), '|')) {
+                $output[] = $line;
+                continue;
+            }
+
+            $cells = $this->markdownCells($line);
+
+            if ($this->isSeparator($lines[$i + 1] ?? '')) {
+                if (!$this->isHeaderRow($cells)) {
+                    return $text;
+                }
+                $header = $cells;
+                continue;
+            }
+
+            if ($header === null || $this->isSeparator($line)) {
+                continue;
+            }
+
+            $values = [];
+            foreach (array_slice($cells, 1, null, true) as $column => $cell) {
+                if ($cell !== '') {
+                    $name = $header[$column] ?? '';
+                    $values[] = $name !== '' ? "{$name} = {$cell}" : $cell;
+                }
+            }
+            $output[] = $cells[0] !== '' ? $cells[0].': '.implode('; ', $values) : implode('; ', $values);
+        }
+
+        return implode("\n", $output);
+    }
+
+    /** "| Pakistan 1 | 3.0 |" → ["Pakistan 1", "3.0"] */
+    public function markdownCells(string $line): array
+    {
+        // "\|" is a pipe inside a cell (see toMarkdown), not a column border.
+        $cells = preg_split('/(?<!\\\\)\|/', trim($line));
+
+        return array_map(fn (string $cell) => str_replace('\\|', '|', trim($cell)), array_slice($cells, 1, -1));
+    }
+
+    /** "| --- | --- |" */
+    public function isSeparator(string $line): bool
+    {
+        return (bool) preg_match('/^\|(?:\s*-+\s*\|)+$/', trim($line));
     }
 
     private function kind(string $line): string
@@ -164,6 +245,13 @@ class TableParser
             if ($this->isNumeric($cell)) {
                 return 'row';
             }
+        }
+
+        // A line of fiscal years ("2023/24  2024/25") is a sub-header that continues the table;
+        // one such token ("In   FY2023/24  and more") is prose.
+        $periods = array_filter(array_slice($cells, 1), fn (string $cell) => (bool) preg_match(self::YEAR_CELL, trim($cell)));
+        if (count($periods) >= 2) {
+            return 'row';
         }
 
         $isLabel = count($cells) === 1
@@ -245,6 +333,12 @@ class TableParser
         return (bool) preg_match(self::NUMERIC_CELL, trim($cell));
     }
 
+    /** A figure or a period heading: a cell that sits in a value column, not the label column. */
+    private function isValue(string $cell): bool
+    {
+        return $this->isNumeric($cell) || (bool) preg_match(self::YEAR_CELL, trim($cell));
+    }
+
     /** "$" printed in its own column belongs to the amount after it. */
     private function mergeCurrencySigns(array $cells): array
     {
@@ -269,7 +363,7 @@ class TableParser
         return array_map(function (array $row) use ($width) {
             $missing = $width - count($row);
             if ($missing > 0) {
-                array_splice($row, $this->isNumeric($row[0]) ? 0 : 1, 0, array_fill(0, $missing, ''));
+                array_splice($row, $this->isValue($row[0]) ? 0 : 1, 0, array_fill(0, $missing, ''));
             }
 
             return $row;

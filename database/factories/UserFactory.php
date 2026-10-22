@@ -24,4 +24,10 @@ class UserFactory extends Factory
             'remember_token' => Str::random(10),
         ];
     }
+
+    /** Can upload and delete shared documents. */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => ['is_admin' => true]);
+    }
 }

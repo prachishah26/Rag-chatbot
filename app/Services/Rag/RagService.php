@@ -2,6 +2,7 @@
 
 namespace App\Services\Rag;
 
+use App\Services\Rag\Indexing\Element;
 use App\Services\Rag\Retrieval\RetrievalResult;
 use App\Services\Rag\Retrieval\Retriever;
 
@@ -14,11 +15,13 @@ class RagService
         // Writes the answer; Ollama or an OpenAI-compatible API (see RAG_CHAT_DRIVER).
         protected ChatModel $chat,
         protected QuoteExtractor $quoteExtractor = new QuoteExtractor(),
+        protected TableParser $tables = new TableParser(),
     ) {}
 
-    public function ask(string $question, string $pipeline = Retriever::ADVANCED): array
+    /** @param  int[]|null  $documentIds  the documents to search; null searches the whole index */
+    public function ask(string $question, string $pipeline = Retriever::ADVANCED, ?array $documentIds = null): array
     {
-        return $this->answer($question, $this->retriever->retrieve($question, $pipeline));
+        return $this->answer($question, $this->retriever->retrieve($question, $pipeline, $documentIds));
     }
 
     /** Writes a grounded, cited answer from passages already retrieved. */
@@ -41,7 +44,8 @@ class RagService
                 $passage->document,
                 $passage->headingPath !== '' ? ' | '.$passage->headingPath : '',
                 $passage->page !== null ? ' | page '.$passage->page : '',
-                $passage->text
+                // Each table value named by its column: models misalign wide Markdown tables.
+                $passage->type === Element::TABLE ? $this->tables->labelledRows($passage->text) : $passage->text
             );
 
             // Passages are ranked best-first; stop before overflowing the model's context.

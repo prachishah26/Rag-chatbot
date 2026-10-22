@@ -63,12 +63,114 @@ class TableParserTest extends TestCase
         $this->assertSame("| Item | 2018 |\n| --- | --- |\n| Net Income | $ 52,624 |", $md);
     }
 
+    public function test_a_period_sub_header_starts_its_own_markdown_header(): void
+    {
+        $md = (new TableParser())->toMarkdown([
+            ['', '2025e', '2026f'],
+            ['Saudi Arabia', '4.5', '3.1'],
+            ['', '2025/26e', '2026/27f'],
+            ['Pakistan 1', '3.0', '3.2'],
+        ]);
+
+        $this->assertSame(
+            "|  | 2025e | 2026f |\n| --- | --- | --- |\n| Saudi Arabia | 4.5 | 3.1 |\n"
+            ."|  | 2025/26e | 2026/27f |\n| --- | --- | --- |\n| Pakistan 1 | 3.0 | 3.2 |",
+            $md
+        );
+    }
+
+    public function test_labelled_rows_name_each_value_by_its_nearest_header(): void
+    {
+        $table = "Table: Forecasts\n"
+            ."|  | 2025e | 2026f |\n| --- | --- | --- |\n| Saudi Arabia | 4.5 | 3.1 |\n"
+            ."|  | 2025/26e | 2026/27f |\n| --- | --- | --- |\n| Pakistan 1 | 3.0 | 3.2 |\n| Lebanon | .. |  |\n\nNotes:\n[^1] Factor cost.";
+
+        $this->assertSame(
+            "Table: Forecasts\n"
+            ."Saudi Arabia: 2025e = 4.5; 2026f = 3.1\n"
+            ."Pakistan 1: 2025/26e = 3.0; 2026/27f = 3.2\n"
+            ."Lebanon: 2025/26e = ..\n\nNotes:\n[^1] Factor cost.",
+            (new TableParser())->labelledRows($table)
+        );
+    }
+
+    public function test_a_table_whose_first_row_is_data_is_not_relabelled(): void
+    {
+        $table = "Table: Carbon Footprint\n| • Production | 50% |\n| --- | --- |\n| • Transportation | 5% |";
+
+        $this->assertSame($table, (new TableParser())->labelledRows($table));
+    }
+
+    public function test_a_data_row_of_plain_years_is_not_a_period_sub_header(): void
+    {
+        $parser = new TableParser();
+
+        $this->assertFalse($parser->isPeriodRow(['Founded', '1990', '2010']));
+        $this->assertTrue($parser->isPeriodRow(['', '2025/26e', '2026/27f']));
+        $this->assertTrue($parser->isPeriodRow(['', '2025e', '2026f']));
+        $this->assertStringNotContainsString(
+            "| Founded | 1990 | 2010 |\n| ---",
+            $parser->toMarkdown([['', '2024', '2025'], ['Founded', '1990', '2010'], ['X', '1', '2']])
+        );
+    }
+
+    public function test_a_period_row_ending_the_table_gets_no_dangling_separator(): void
+    {
+        $md = (new TableParser())->toMarkdown([['', '2025', '2026'], ['A', '1', '2'], ['', '2025/26', '2026/27']]);
+
+        $this->assertStringEndsWith('|  | 2025/26 | 2026/27 |', $md);
+    }
+
+    public function test_labelled_rows_respect_escaped_pipes_in_cells(): void
+    {
+        $table = "| Item | Value |\n| --- | --- |\n| a \\| b | 5 |";
+
+        $this->assertSame('a | b: Value = 5', (new TableParser())->labelledRows($table));
+    }
+
+    public function test_a_prose_line_with_one_fiscal_year_is_not_a_table_row(): void
+    {
+        $text = "Growth was strong.\n\nIn   FY2023/24  and more\nRevenue  100  90\nCosts  50  40";
+
+        [$start] = (new TableParser())->regions($text)[0];
+
+        $this->assertSame(strpos($text, 'Revenue'), $start);
+    }
+
     public function test_header_row_detection(): void
     {
         $parser = new TableParser();
 
         $this->assertTrue($parser->isHeaderRow(['Summary of Net Income (in thousands)', '2018', '2017']));
         $this->assertFalse($parser->isHeaderRow(['Net Income', '$ 52,624', '$ 58,876']));
+    }
+
+    public function test_fiscal_year_sub_headers_stay_inside_the_table(): void
+    {
+        $text = "Intro prose sentence that explains the page in words.\n\n"
+            ."                     2023      2024      2025e     2026f\n"
+            ."Calendar-year basis\n"
+            ."  Saudi Arabia       0.5       2.6       4.5       3.1\n"
+            ."Fiscal-year basis 4  2023/24   2024/25   2025/26e  2026/27f\n"
+            ."  Afghanistan        2.3       1.9       4.8       4.0\n"
+            ."                     2022/23   2023/24   2024/25   2025/26e\n"
+            ."  Pakistan 1         -0.2      2.6       3.1       3.0\n";
+
+        $parser = new TableParser();
+        [$start, $end] = $parser->regionAround($text, strpos($text, 'Saudi'));
+        $rows = $parser->parse(substr($text, $start, $end - $start));
+
+        $this->assertStringEndsWith('3.0', substr($text, $start, $end - $start));
+        $this->assertSame([
+            ['', '2023', '2024', '2025e', '2026f'],
+            ['Calendar-year basis Saudi Arabia', '0.5', '2.6', '4.5', '3.1'],
+            ['Fiscal-year basis 4', '2023/24', '2024/25', '2025/26e', '2026/27f'],
+            ['Afghanistan', '2.3', '1.9', '4.8', '4.0'],
+            ['', '2022/23', '2023/24', '2024/25', '2025/26e'],
+            ['Pakistan 1', '-0.2', '2.6', '3.1', '3.0'],
+        ], $rows);
+        $this->assertTrue($parser->isPeriodRow($rows[4]));
+        $this->assertFalse($parser->isPeriodRow($rows[5]));
     }
 
     public function test_long_runs_of_short_lines_end_the_table(): void

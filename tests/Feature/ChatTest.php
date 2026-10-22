@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\Document;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Rag\ChatModel;
 use App\Services\Rag\RagService;
+use App\Services\Rag\Retrieval\Retriever;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Mockery;
@@ -208,12 +210,110 @@ class ChatTest extends TestCase
         $this->assertSame('and what is it?', $conversation->messages()->reorder()->latest('id')->skip(1)->first()->content);
     }
 
-    private function mockRag(string $question): void
+    /** @param  int[]  $documentIds  the documents the question may be searched in */
+    private function mockRag(string $question, array $documentIds = []): void
     {
-
         $mock = Mockery::mock(RagService::class);
-        $mock->shouldReceive('ask')->once()->with($question)->andReturn(self::ANSWER);
+        $mock->shouldReceive('ask')->once()->with($question, Retriever::ADVANCED, $documentIds)->andReturn(self::ANSWER);
         $this->app->instance(RagService::class, $mock);
+    }
+
+    public function test_question_searches_own_and_shared_indexed_documents_only(): void
+    {
+        $user = User::factory()->create();
+        $mine = Document::factory()->for($user)->create();
+        $shared = Document::factory()->shared()->create();
+        Document::factory()->for($user)->status(Document::PROCESSING)->create();
+        Document::factory()->create();
+        $this->mockRag('What is Laravel?', [$mine->id, $shared->id]);
+
+        $this->actingAs($user)->postJson(route('chat.ask'), ['question' => 'What is Laravel?'])->assertOk();
+
+        $this->assertNull($user->conversations()->sole()->document_id);
+    }
+
+    public function test_new_chat_can_be_limited_to_one_document(): void
+    {
+        $user = User::factory()->create();
+        Document::factory()->for($user)->create();
+        $chosen = Document::factory()->for($user)->create();
+        $this->mockRag('What is Laravel?', [$chosen->id]);
+
+        $this->actingAs($user)->postJson(route('chat.ask'), [
+            'question' => 'What is Laravel?',
+            'document_id' => $chosen->id,
+        ])->assertOk();
+
+        $this->assertSame($chosen->id, $user->conversations()->sole()->document_id);
+    }
+
+    public function test_chat_cannot_be_limited_to_another_users_document(): void
+    {
+        $this->assertDocumentRejected(Document::factory()->create());
+    }
+
+    public function test_chat_cannot_be_limited_to_a_document_still_being_indexed(): void
+    {
+        $user = User::factory()->create();
+
+        $this->assertDocumentRejected(Document::factory()->for($user)->status(Document::QUEUED)->create(), $user);
+    }
+
+    public function test_follow_up_keeps_the_conversations_document(): void
+    {
+        $user = User::factory()->create();
+        $chosen = Document::factory()->for($user)->create();
+        $other = Document::factory()->for($user)->create();
+        $conversation = $user->conversations()->create(['title' => 'Scoped', 'document_id' => $chosen->id]);
+        $this->mockRag('And Eloquent?', [$chosen->id]);
+
+        // A conversation's scope is fixed when it starts; a different id in the request is ignored.
+        $this->actingAs($user)->postJson(route('chat.ask'), [
+            'question' => 'And Eloquent?',
+            'conversation_id' => $conversation->id,
+            'document_id' => $other->id,
+        ])->assertOk();
+
+        $this->assertSame($chosen->id, $conversation->fresh()->document_id);
+    }
+
+    public function test_document_picker_offers_only_searchable_documents(): void
+    {
+        $user = User::factory()->create();
+        Document::factory()->for($user)->create(['original_name' => 'ready.pdf']);
+        Document::factory()->shared()->create(['original_name' => 'library.pdf']);
+        Document::factory()->for($user)->status(Document::FAILED)->create(['original_name' => 'broken.pdf']);
+        Document::factory()->create(['original_name' => 'theirs.pdf']);
+
+        $this->actingAs($user)->get(route('chat.index'))
+            ->assertOk()
+            ->assertSee(['ready.pdf', 'library.pdf'])
+            ->assertDontSee(['broken.pdf', 'theirs.pdf']);
+    }
+
+    public function test_conversation_page_names_its_document(): void
+    {
+        $user = User::factory()->create();
+        $document = Document::factory()->for($user)->create(['original_name' => 'handbook.pdf']);
+        $conversation = $user->conversations()->create(['title' => 'Scoped', 'document_id' => $document->id]);
+
+        $this->actingAs($user)->get(route('chat.show', $conversation->id))
+            ->assertOk()
+            ->assertSee('handbook.pdf');
+    }
+
+    private function assertDocumentRejected(Document $document, ?User $user = null): void
+    {
+        $rag = Mockery::mock(RagService::class);
+        $rag->shouldNotReceive('ask');
+        $this->app->instance(RagService::class, $rag);
+
+        $this->actingAs($user ?? User::factory()->create())->postJson(route('chat.ask'), [
+            'question' => 'What is Laravel?',
+            'document_id' => $document->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors('document_id');
+
+        $this->assertDatabaseCount('conversations', 0);
     }
 
     private function conversationWithHistory(User $user): Conversation

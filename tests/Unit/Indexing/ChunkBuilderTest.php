@@ -122,11 +122,61 @@ class ChunkBuilderTest extends TestCase
         foreach ($chunks as $chunk) {
             $lines = explode("\n", $chunk->text);
             $this->assertSame($header, array_slice($lines, 0, 3));
-            $this->assertLessThanOrEqual(400, mb_strlen($chunk->text));
-            $this->assertSame($chunk->text, $chunk->parentText);
+            $this->assertSame($header, array_slice(explode("\n", $chunk->parentText), 0, 3));
+            $this->assertLessThanOrEqual(400, mb_strlen($chunk->parentText));
+            $this->assertStringContainsString(implode("\n", array_slice($lines, 3)), $chunk->parentText);
             $seenRows = [...$seenRows, ...array_slice($lines, 3)];
         }
         $this->assertSame($rows, $seenRows);
+    }
+
+    public function test_table_children_are_row_windows_that_keep_their_column_headers(): void
+    {
+        $header = ['Table: Forecasts', '|  | 2025 | 2026 |', '| --- | --- | --- |'];
+        $calendar = array_map(fn (int $n) => sprintf('| Calendar country %02d | %d.1 | %d.2 |', $n, $n, $n), range(1, 6));
+        $fiscal = "|  | 2025/26 | 2026/27 |\n| --- | --- | --- |";
+        $fiscalRows = ['| Pakistan 1 | 3.0 | 3.2 |', '| Egypt, Arab Rep. | 4.6 | 4.0 |'];
+        $moreFiscal = array_map(fn (int $n) => sprintf('| Fiscal country %02d | %d.1 | %d.2 |', $n, $n, $n), range(1, 3));
+        $table = implode("\n", [...$header, ...$calendar, $fiscal, ...$fiscalRows, ...$moreFiscal]);
+        $this->assertLessThan(600, mb_strlen($table));
+
+        $chunks = (new ChunkBuilder())->build([$this->section([new Element(Element::TABLE, $table, 4)])]);
+
+        $this->assertGreaterThan(1, count($chunks));
+        foreach ($chunks as $chunk) {
+            $this->assertSame($header, array_slice(explode("\n", $chunk->text), 0, 3));
+            $this->assertLessThanOrEqual(200, mb_strlen($chunk->text));
+            // The model reads the whole table; only search sees the window.
+            $this->assertSame($table, $chunk->parentText);
+            $this->assertSame(0, $chunk->parentIndex);
+        }
+
+        // Rows below a sub-header are searched with that sub-header's periods, in every window.
+        $fiscalWindows = array_values(array_filter($chunks, fn (Chunk $c) => !str_contains($c->text, 'Calendar country')));
+        $this->assertCount(2, $fiscalWindows);
+        $seenRows = [];
+        foreach ($fiscalWindows as $chunk) {
+            $lines = explode("\n", $chunk->text);
+            $this->assertSame(explode("\n", $fiscal), array_slice($lines, 3, 2));
+            $seenRows = [...$seenRows, ...array_slice($lines, 5)];
+        }
+        $this->assertSame([...$fiscalRows, ...$moreFiscal], $seenRows);
+    }
+
+    public function test_a_long_table_cut_into_parents_repeats_the_period_sub_header(): void
+    {
+        $header = ['Table: Forecasts', '|  | 2025 | 2026 |', '| --- | --- | --- |'];
+        $fiscal = ['|  | 2025/26 | 2026/27 |', '| --- | --- | --- |'];
+        $rows = array_map(fn (int $n) => sprintf('| Fiscal country %02d | %d.1 | %d.2 |', $n, $n, $n), range(1, 30));
+        $table = implode("\n", [...$header, ...$fiscal, ...$rows]);
+
+        $chunks = (new ChunkBuilder())->build([$this->section([new Element(Element::TABLE, $table, 4)])]);
+
+        $parents = array_values(array_unique(array_map(fn (Chunk $c) => $c->parentText, $chunks)));
+        $this->assertGreaterThan(1, count($parents));
+        foreach ($parents as $parent) {
+            $this->assertSame([...$header, ...$fiscal], array_slice(explode("\n", $parent), 0, 5));
+        }
     }
 
     public function test_cited_endnotes_are_appended_to_the_chunk(): void

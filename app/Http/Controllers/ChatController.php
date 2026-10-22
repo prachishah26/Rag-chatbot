@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Conversation;
+use App\Models\Document;
 use App\Models\Message;
+use App\Models\User;
 use App\Services\Rag\Conversation\ChatAssistant;
 use App\Services\Rag\Conversation\ChatHistory;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -31,14 +34,24 @@ class ChatController extends Controller
         $validated = $request->validate([
             'question' => ['required', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer'],
+            'document_id' => ['nullable', 'integer'],
         ]);
 
         $conversation = isset($validated['conversation_id'])
             ? $this->findConversation($request, $validated['conversation_id'])
             : null;
 
+        // A conversation keeps the document it started with; only a new chat can choose one.
+        $document = $conversation
+            ? $conversation->document
+            : $this->chosenDocument($request->user(), $validated['document_id'] ?? null);
+
+        $documentIds = $document
+            ? [$document->id]
+            : Document::visibleTo($request->user())->searchable()->orderBy('id')->pluck('id')->all();
+
         try {
-            $result = $assistant->reply($validated['question'], $this->recentHistory($conversation));
+            $result = $assistant->reply($validated['question'], $this->recentHistory($conversation), $documentIds);
         } catch (Throwable $e) {
             report($e);
 
@@ -48,7 +61,7 @@ class ChatController extends Controller
             ], 500);
         }
 
-        $conversation = $this->saveExchange($request, $conversation, $validated['question'], $result);
+        $conversation = $this->saveExchange($request, $conversation, $document, $validated['question'], $result);
 
         return response()->json([...$result, 'conversation_id' => $conversation->id]);
     }
@@ -64,7 +77,9 @@ class ChatController extends Controller
     {
         return view('chat', [
             'conversations' => $request->user()->conversations()->latest('updated_at')->limit(50)->get(),
-            'conversation' => $conversation,
+            'conversation' => $conversation?->load('document'),
+            // Documents a new chat can be limited to.
+            'documents' => Document::visibleTo($request->user())->searchable()->orderBy('original_name')->get(['id', 'user_id', 'original_name']),
             'history' => $conversation?->messages()->get(['role', 'content', 'sources', 'quotes']) ?? [],
         ]);
     }
@@ -73,6 +88,16 @@ class ChatController extends Controller
     private function findConversation(Request $request, int $id): Conversation
     {
         return $request->user()->conversations()->findOrFail($id);
+    }
+
+    private function chosenDocument(User $user, ?int $id): ?Document
+    {
+        if ($id === null) {
+            return null;
+        }
+
+        return Document::visibleTo($user)->searchable()->find($id)
+            ?? throw ValidationException::withMessages(['document_id' => 'Choose one of your indexed documents.']);
     }
 
     /** The last few messages, oldest first, so follow-ups and small talk keep their context. */
@@ -90,11 +115,12 @@ class ChatController extends Controller
     }
 
     /** Stores the question and answer together; a failed RAG call stores nothing. */
-    private function saveExchange(Request $request, ?Conversation $conversation, string $question, array $result): Conversation
+    private function saveExchange(Request $request, ?Conversation $conversation, ?Document $document, string $question, array $result): Conversation
     {
-        return DB::transaction(function () use ($request, $conversation, $question, $result) {
+        return DB::transaction(function () use ($request, $conversation, $document, $question, $result) {
             $conversation ??= $request->user()->conversations()->create([
                 'title' => Str::limit(Str::squish($question), 80),
+                'document_id' => $document?->id,
             ]);
 
             $conversation->messages()->create([

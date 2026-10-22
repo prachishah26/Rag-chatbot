@@ -16,14 +16,17 @@ class MessageRouter
 You route messages in a document Q&A app: users upload reports and ask questions about them.
 Decide what the user's latest message is, using the conversation (if any) to understand it.
 
-- "chat": greetings, thanks, goodbyes, short replies and reactions, questions about you or
-  about the user (e.g. their name), and anything that needs no information from documents.
+- "chat": greetings, thanks, goodbyes, short replies and reactions, and questions about you or
+  about the user (e.g. their name).
   A reply with no topic of its own ("yes please", "sure", "ok") is "chat" unless the
   assistant's last message offered one specific piece of document information.
 - "document": anything that asks for or about information that could be in the documents,
   including a short reply accepting a specific offer ("yes please" after "Would you like the
   revenue table for 2018?"). An open invitation such as "Let me know if there's anything you'd
   like to explore" is not a specific offer.
+  A request for facts — prices, figures, dates, people, products, companies, events — is always
+  "document", even if you could answer it from general knowledge: answers must come from the
+  user's documents. When unsure, choose "document".
 
 For "document", also rewrite the latest message as a standalone search question: fill in what it
 leaves out (subject, organisation, metric, year, region) from the conversation, keep every name,

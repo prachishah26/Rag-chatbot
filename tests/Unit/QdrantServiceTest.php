@@ -145,6 +145,19 @@ class QdrantServiceTest extends TestCase
             && !isset($r['prefetch']));
     }
 
+    public function test_list_filter_value_matches_any_of_the_values(): void
+    {
+        $this->fakeExistingCollection();
+
+        (new QdrantService())->denseSearch([0.4], ['document_id' => [3, 7], 'region' => 'SAR'], 8);
+
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/points/query')
+            && $r['filter'] === ['must' => [
+                ['key' => 'document_id', 'match' => ['any' => [3, 7]]],
+                ['key' => 'region', 'match' => ['value' => 'SAR']],
+            ]]);
+    }
+
     public function test_search_failure_throws(): void
     {
         Http::fake([

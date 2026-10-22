@@ -2,15 +2,21 @@
 
 namespace App\Services\Rag\Indexing;
 
+use App\Services\Rag\TableParser;
+
 /**
  * Sections → parent and child chunks. Prose parents (~900 tokens) are whole sentences that stay
  * inside one section; each parent is cut into overlapping children (~280 tokens) for search.
- * A table or a chart description is one element and one chunk, never cut by a character count.
+ * A chart description is one chunk. A table is a parent; its children are windows of rows that
+ * repeat the column headers, so a row deep in a long table can still be found and reranked.
  * Endnotes cited in a child ("[^7]") are appended to it, so the caveat is indexed with the claim.
  */
 class ChunkBuilder
 {
-    public function __construct(private SentenceSplitter $sentences = new SentenceSplitter()) {}
+    public function __construct(
+        private SentenceSplitter $sentences = new SentenceSplitter(),
+        private TableParser $tables = new TableParser(),
+    ) {}
 
     /**
      * @param  array<int, Section>  $sections
@@ -123,6 +129,10 @@ class ChunkBuilder
     /** @return array<int, string> children of a parent: overlapping sentence windows */
     private function children(string $type, array $sentences): array
     {
+        if ($type === Element::TABLE) {
+            return $this->tableChildren($sentences[0]);
+        }
+
         if ($type !== Element::TEXT) {
             return [$sentences[0]];
         }
@@ -155,31 +165,76 @@ class ChunkBuilder
         return $children;
     }
 
-    /** A block longer than the limit (a long table) is cut between rows, repeating its first lines. */
+    /** A block longer than the limit (a long table) is cut between rows, repeating its headers. */
     private function splitBlock(string $text, int $limit): array
     {
-        if (mb_strlen($text) <= $limit * 1.5) {
-            return [$text];
-        }
+        return mb_strlen($text) <= $limit * 1.5 ? [$text] : $this->tableWindows($text, $limit);
+    }
 
-        $lines = explode("\n", $text);
-        // Title plus a Markdown header and its separator row.
-        $headerCount = str_starts_with($lines[0], 'Table:') ? 3 : 2;
-        $header = array_slice($lines, 0, $headerCount);
-        $pieces = [];
-        $current = $header;
+    /** @return array<int, string> a table's search children: row windows up to a child's size */
+    private function tableChildren(string $table): array
+    {
+        $limit = max(200, (int) config('rag.chunking.child_size'));
 
-        foreach (array_slice($lines, $headerCount) as $line) {
-            if (count($current) > $headerCount && mb_strlen(implode("\n", [...$current, $line])) > $limit) {
-                $pieces[] = implode("\n", $current);
-                $current = $header;
+        return mb_strlen($table) <= $limit ? [$table] : $this->tableWindows($table, $limit);
+    }
+
+    /**
+     * Windows of rows up to $limit characters, each under the column headers. A sub-header row of
+     * periods ("|  | 2025/26 | 2026/27 |") and its separator start a new window and head every
+     * window below it, so no row is ever read under the wrong periods.
+     *
+     * @return array<int, string>
+     */
+    private function tableWindows(string $table, int $limit): array
+    {
+        $lines = explode("\n", $table);
+        $header = array_slice($lines, 0, $this->tableHeaderCount($lines));
+        $children = [];
+        $window = [];
+        $subHeader = null;
+        $rows = 0;
+
+        $flush = function () use (&$children, &$window, &$rows, $header) {
+            if ($rows > 0) {
+                $children[] = implode("\n", [...$header, ...$window]);
             }
-            $current[] = $line;
+            $window = [];
+            $rows = 0;
+        };
+
+        foreach (array_slice($lines, count($header)) as $line) {
+            if ($this->tables->isPeriodRow($this->tables->markdownCells($line))) {
+                $flush();
+                $subHeader = [$line];
+                $window = $subHeader;
+                continue;
+            }
+
+            if ($subHeader !== null && $rows === 0 && $this->tables->isSeparator($line)) {
+                $subHeader[] = $line;
+                $window = $subHeader;
+                continue;
+            }
+
+            if ($rows > 0 && mb_strlen(implode("\n", [...$header, ...$window, $line])) > $limit) {
+                $flush();
+                $window = $subHeader ?? [];
+            }
+
+            $window[] = $line;
+            $rows++;
         }
 
-        $pieces[] = implode("\n", $current);
+        $flush();
 
-        return $pieces;
+        return $children ?: [$table];
+    }
+
+    /** Title plus a Markdown header and its separator row. */
+    private function tableHeaderCount(array $lines): int
+    {
+        return str_starts_with($lines[0], 'Table:') ? 3 : 2;
     }
 
     private function join(string $type, array $sentences): string

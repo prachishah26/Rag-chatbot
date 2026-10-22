@@ -26,7 +26,8 @@ class IngestDocument extends Command
         }
 
         $name = basename($path);
-        $existing = Document::where('original_name', $name)->first();
+        // CLI documents are shared; a user's private upload with the same name is a different document.
+        $existing = Document::whereNull('user_id')->where('original_name', $name)->first();
 
         if ($existing && !$this->option('replace')) {
             $this->error("{$name} is already indexed (document {$existing->id}); pass --replace to re-index it.");

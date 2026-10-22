@@ -1,49 +1,101 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="page-header">
-    <div>
-        <h1>Document Chat</h1>
-        <p>Ask questions about your indexed documents. Answers are written from the retrieved document sections, with the supporting passages shown as evidence. Questions that name a region or chapter search only that part of the report.</p>
-    </div>
+@section('main-class', 'flush')
+
+@section('sidebar')
+<div class="side-section">
+    <a class="button new-chat" href="{{ route('chat.index') }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        New chat
+    </a>
+    <div class="side-nav-label">Recent chats</div>
+    <small id="no-conversations" @if($conversations->isNotEmpty()) hidden @endif>Your conversations will appear here.</small>
+    <ul id="conversation-list" class="conversation-list">
+        @foreach($conversations as $item)
+            <li>
+                <a href="{{ route('chat.show', $item->id) }}" title="{{ $item->title }}" @class(['active' => $conversation?->id === $item->id])>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>{{ $item->title }}</span>
+                </a>
+            </li>
+        @endforeach
+    </ul>
 </div>
+@endsection
 
+@section('content')
 <div class="chat-layout">
-    <aside class="card chat-sidebar">
-        <a class="button" href="{{ route('chat.index') }}">+ New chat</a>
-        <small id="no-conversations" @if($conversations->isNotEmpty()) hidden @endif>Your conversations will appear here.</small>
-        <ul id="conversation-list" class="conversation-list">
-            @foreach($conversations as $item)
-                <li>
-                    <a href="{{ route('chat.show', $item->id) }}" title="{{ $item->title }}" @class(['active' => $conversation?->id === $item->id])>{{ $item->title }}</a>
-                </li>
-            @endforeach
-        </ul>
-    </aside>
-
     <section class="chat-card">
         @if($conversation)
             <div class="chat-toolbar">
-                <h2 title="{{ $conversation->title }}">{{ $conversation->title }}</h2>
+                <div class="chat-title">
+                    <h2 title="{{ $conversation->title }}">{{ $conversation->title }}</h2>
+                    <span class="scope-tag" title="Documents this conversation searches">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                        {{ $conversation->document?->original_name ?? 'All documents' }}
+                    </span>
+                </div>
                 <form method="POST" action="{{ route('chat.destroy', $conversation->id) }}" onsubmit="return confirm('Delete this conversation?')">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="danger">Delete</button>
+                    <button type="submit" class="ghost icon-button" title="Delete conversation" aria-label="Delete conversation">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                    </button>
                 </form>
             </div>
         @endif
 
-        <div id="messages" class="messages">
-            <div class="message assistant">
-                <strong>RAG Assistant</strong>
-                <div>Upload and index a document, then ask me a question about it.</div>
+        <div id="messages" class="messages" aria-live="polite">
+            <div id="chat-welcome" class="chat-welcome">
+                <span class="brand-mark">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 10.7l-6.1 1.9L12 18.5l-1.9-5.9L4 10.7l6.1-1.9z"/></svg>
+                </span>
+                <h2>Ask your documents anything</h2>
+                <p>Answers are written from the retrieved document sections, with the supporting passages shown as evidence. Questions that name a region or chapter search only that part of the report.</p>
+                <div class="suggestions">
+                    @foreach([
+                        'Summarize the key points of my documents',
+                        'What are the main risks mentioned?',
+                        'List the important figures and numbers',
+                        'What conclusions does the report draw?',
+                    ] as $suggestion)
+                        <button type="button" class="suggestion" data-suggestion="{{ $suggestion }}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                            {{ $suggestion }}
+                        </button>
+                    @endforeach
+                </div>
             </div>
         </div>
 
         <form id="chat-form" class="chat-form">
             @csrf
-            <textarea id="question" rows="3" placeholder="Ask something about your documents... (Enter to send, Shift+Enter for a new line)" required></textarea>
-            <button id="ask-button" type="submit">Ask</button>
+            @unless($conversation)
+                <div class="scope-picker">
+                    @if($documents->isNotEmpty())
+                        <label for="document-scope">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                            Search in
+                        </label>
+                        <select id="document-scope">
+                            <option value="">All documents ({{ $documents->count() }})</option>
+                            @foreach($documents as $document)
+                                <option value="{{ $document->id }}">{{ $document->original_name }}{{ $document->isShared() ? ' · shared' : '' }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <span>No indexed documents yet. <a href="{{ route('documents.index') }}">Upload one</a> to start asking questions.</span>
+                    @endif
+                </div>
+            @endunless
+            <div class="composer">
+                <label for="question" class="sr-only">Your question</label>
+                <textarea id="question" rows="1" maxlength="2000" placeholder="Ask something about your documents…" required></textarea>
+                <button id="ask-button" type="submit" title="Send" aria-label="Send">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                </button>
+            </div>
+            <small class="composer-hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line</small>
         </form>
     </section>
 </div>
@@ -53,10 +105,16 @@ const form = document.getElementById('chat-form');
 const question = document.getElementById('question');
 const messages = document.getElementById('messages');
 const button = document.getElementById('ask-button');
+const welcome = document.getElementById('chat-welcome');
+const scope = document.getElementById('document-scope');
+const userInitial = @json(Str::upper(Str::substr(auth()->user()->name, 0, 1)));
+const sendIcon = button.innerHTML;
 let conversationId = @json($conversation?->id);
 
+const ASSISTANT_AVATAR = `<span class="avatar" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 10.7l-6.1 1.9L12 18.5l-1.9-5.9L4 10.7l6.1-1.9z"/></svg></span>`;
+
 // Earlier messages of this conversation, saved on the server.
-for (const message of @json($history)) {
+for (const message of {{ Js::from($history) }}) {
     if (message.role === 'user') {
         addUserMessage(message.content);
     } else {
@@ -65,12 +123,21 @@ for (const message of @json($history)) {
 }
 
 function addMessage(role, html) {
+    welcome?.remove();
     const div = document.createElement('div');
     div.className = `message ${role}`;
     div.innerHTML = html;
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
+    return div;
 }
+
+// The textarea grows with its content, up to the CSS max-height.
+function resizeQuestion() {
+    question.style.height = 'auto';
+    question.style.height = `${question.scrollHeight}px`;
+}
+question.addEventListener('input', resizeQuestion);
 
 // Enter sends; Shift+Enter adds a new line. Composing text (e.g. an IME) is left alone.
 question.addEventListener('keydown', (event) => {
@@ -78,6 +145,27 @@ question.addEventListener('keydown', (event) => {
         event.preventDefault();
         if (!button.disabled) form.requestSubmit();
     }
+});
+
+document.querySelectorAll('[data-suggestion]').forEach(suggestion => {
+    suggestion.addEventListener('click', () => {
+        question.value = suggestion.dataset.suggestion;
+        form.requestSubmit();
+    });
+});
+
+// Copy buttons are added to every answer, so one delegated listener handles them all.
+messages.addEventListener('click', async (event) => {
+    const copy = event.target.closest('[data-copy]');
+    if (!copy) return;
+    const answer = copy.closest('.message-body').querySelector('.answer');
+    try {
+        await navigator.clipboard.writeText(answer.innerText);
+        copy.textContent = 'Copied';
+    } catch {
+        copy.textContent = 'Copy failed';
+    }
+    setTimeout(() => { copy.textContent = 'Copy'; }, 1500);
 });
 
 form.addEventListener('submit', async (event) => {
@@ -88,8 +176,10 @@ form.addEventListener('submit', async (event) => {
 
     addUserMessage(value);
     question.value = '';
+    resizeQuestion();
     button.disabled = true;
-    button.textContent = 'Thinking...';
+    button.innerHTML = '<span class="spinner"></span>';
+    const typing = addMessage('assistant', `${ASSISTANT_AVATAR}<div class="message-body"><div class="message-author">RAG Assistant</div><div class="bubble"><span class="typing" aria-label="Thinking"><span></span><span></span><span></span></span></div></div>`);
 
     try {
         const response = await fetch('{{ route('chat.ask') }}', {
@@ -99,15 +189,21 @@ form.addEventListener('submit', async (event) => {
                 'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
             },
-            body: JSON.stringify({ question: value, conversation_id: conversationId })
+            body: JSON.stringify({
+                question: value,
+                conversation_id: conversationId,
+                // Only a new chat picks its documents; the server keeps that choice for the conversation.
+                document_id: !conversationId && scope?.value ? Number(scope.value) : null,
+            })
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error || data.message || 'Request failed.');
+            throw new Error(data.errors?.document_id?.[0] || data.error || data.message || 'Request failed.');
         }
 
+        typing.remove();
         addAssistantMessage(data);
 
         // A new chat gets its own URL, so reloading the page shows the same conversation.
@@ -115,47 +211,78 @@ form.addEventListener('submit', async (event) => {
             conversationId = data.conversation_id;
             history.replaceState(null, '', `{{ url('/chat') }}/${conversationId}`);
             addToSidebar(conversationId, value);
+            if (scope) scope.disabled = true;
         }
     } catch (error) {
-        addMessage('assistant error-message', `<strong>Error</strong><div>${escapeHtml(error.message)}</div>`);
+        typing.remove();
+        addMessage('assistant error-message', `${ASSISTANT_AVATAR}<div class="message-body"><div class="message-author">Error</div><div class="bubble">${escapeHtml(error.message)}</div></div>`);
     } finally {
         button.disabled = false;
-        button.textContent = 'Ask';
+        button.innerHTML = sendIcon;
+        question.focus();
     }
 });
 
 // Lists a chat started on this page without a reload; the server titles it from the first question.
 function addToSidebar(id, title) {
+    const label = document.createElement('span');
+    label.textContent = title.replace(/\s+/g, ' ').slice(0, 80);
+
     const link = document.createElement('a');
     link.href = `{{ url('/chat') }}/${id}`;
     link.className = 'active';
     link.title = title;
-    link.textContent = title.replace(/\s+/g, ' ').slice(0, 80);
+    link.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    link.appendChild(label);
 
     const item = document.createElement('li');
     item.appendChild(link);
-    document.getElementById('conversation-list').prepend(item);
+    const list = document.getElementById('conversation-list');
+    list.querySelectorAll('a.active').forEach(active => active.classList.remove('active'));
+    list.prepend(item);
     document.getElementById('no-conversations').hidden = true;
 }
 
 function addUserMessage(text) {
-    addMessage('user', `<strong>You</strong><div>${escapeHtml(text)}</div>`);
+    addMessage('user', `<span class="avatar" aria-hidden="true">${escapeHtml(userInitial)}</span>
+        <div class="message-body"><div class="message-author">You</div><div class="bubble">${escapeHtml(text)}</div></div>`);
 }
 
 function addAssistantMessage(data) {
-    const sources = (data.sources || []).map(source =>
-        `<li>${escapeHtml(source.document)}${source.page ? ` · page ${escapeHtml(String(source.page))}` : ''}${source.section ? ` · ${escapeHtml(source.section)}` : ''} · score ${escapeHtml(String(source.score))}${source.cited ? ' · cited' : ''}</li>`
-    ).join('');
+    const sourceList = data.sources || [];
+    const quoteList = data.quotes || [];
+
+    const sources = sourceList.map(source => {
+        const meta = [
+            source.page ? `page ${escapeHtml(String(source.page))}` : '',
+            source.section ? escapeHtml(source.section) : '',
+        ].filter(Boolean).join(' · ');
+
+        return `<li class="source">
+            <div class="source-info">
+                <span class="source-doc">${escapeHtml(source.document)}</span>
+                ${meta ? `<span class="source-meta">${meta}</span>` : ''}
+            </div>
+            ${source.cited ? '<span class="chip">cited</span>' : ''}
+            <span class="score" title="Similarity score">${escapeHtml(String(source.score))}</span>
+        </li>`;
+    }).join('');
 
     // The answer is generated by the model; quotes are the document passages that back it up.
-    const evidence = (data.quotes || []).map(renderQuote).join('');
+    const evidence = quoteList.map(renderQuote).join('');
 
     addMessage(
         'assistant',
-        `<strong>RAG Assistant</strong>
-         <div class="answer">${renderAnswer(data.answer || '')}</div>
-         ${evidence ? `<details><summary>Evidence from documents</summary>${evidence}</details>` : ''}
-         ${sources ? `<details><summary>Sources</summary><ul>${sources}</ul></details>` : ''}`
+        `${ASSISTANT_AVATAR}
+         <div class="message-body">
+            <div class="message-author">RAG Assistant</div>
+            <div class="bubble">
+                <div class="answer">${renderAnswer(data.answer || '')}</div>
+                ${evidence ? `<details><summary>Evidence from documents <span class="count">${quoteList.length}</span></summary><div class="details-body">${evidence}</div></details>` : ''}
+                ${sources ? `<details><summary>Sources <span class="count">${sourceList.length}</span></summary><div class="details-body"><ul class="source-list">${sources}</ul></div></details>` : ''}
+            </div>
+            <div class="message-actions"><button type="button" class="ghost" data-copy>Copy</button></div>
+         </div>`
     );
 }
 
@@ -216,7 +343,7 @@ function renderQuote(quote) {
 }
 
 function escapeHtml(value) {
-    return value.replace(/[&<>"']/g, char => ({
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
     }[char]));
 }

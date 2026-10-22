@@ -4,6 +4,7 @@ namespace App\Services\Rag\Conversation;
 
 use App\Services\Rag\ChatModel;
 use App\Services\Rag\RagService;
+use App\Services\Rag\Retrieval\Retriever;
 
 /** Answers one chat message: small talk directly, document questions through RAG. */
 class ChatAssistant
@@ -32,27 +33,48 @@ PROMPT;
 
     /**
      * @param  array<int, array{role: string, content: string}>  $history  earlier messages, oldest first
+     * @param  int[]|null  $documentIds  the documents a document question may search; null = whole index.
+     *                                    Required, so a caller can never search everyone's documents by omission.
      * @return array{answer: string, quotes: array, sources: array, filter: array}
      */
-    public function reply(string $message, array $history = []): array
+    public function reply(string $message, array $history, ?array $documentIds): array
     {
         $routed = $this->router->route($message, $history);
 
         if ($routed->isChat) {
-            return $this->chitChat($message, $history);
+            $answer = $this->chitChat($message, $history);
+
+            // A small-talk reply stating figures the conversation never mentioned answered a factual
+            // question from the model's own knowledge ("the iMac costs $1,299"): search instead.
+            if (!$this->inventsFigures($answer, $message, $history)) {
+                return ['answer' => $answer, 'quotes' => [], 'sources' => [], 'filter' => []];
+            }
         }
 
-        return $this->rag->ask($routed->question);
+        return $this->rag->ask($routed->question, Retriever::ADVANCED, $documentIds);
     }
 
-    private function chitChat(string $message, array $history): array
+    private function chitChat(string $message, array $history): string
     {
-        $answer = $this->chat->complete([
+        return $this->chat->complete([
             ['role' => 'system', 'content' => self::SMALL_TALK_INSTRUCTIONS],
             ...$history,
             ['role' => 'user', 'content' => $message],
         ]);
+    }
 
-        return ['answer' => $answer, 'quotes' => [], 'sources' => [], 'filter' => []];
+    private function inventsFigures(string $answer, string $message, array $history): bool
+    {
+        $known = $this->figures(implode(' ', [$message, ...array_column($history, 'content')]));
+
+        return array_diff($this->figures($answer), $known) !== [];
+    }
+
+    /** @return string[] numbers, ignoring thousands separators: "$1,299.00" → "1299.00" */
+    private function figures(string $text): array
+    {
+        preg_match_all('/\d[\d,]*(?:\.\d+)?/', $text, $matches);
+
+        return array_unique(array_map(fn (string $n) => str_replace(',', '', $n), $matches[0]));
     }
 }

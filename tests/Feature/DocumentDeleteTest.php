@@ -27,6 +27,7 @@ class DocumentDeleteTest extends TestCase
         Storage::disk('local')->put('documents/report.pdf', 'pdf');
 
         $document = Document::create([
+            'user_id' => auth()->id(),
             'original_name' => 'report.pdf',
             'path' => 'documents/report.pdf',
             'mime_type' => 'application/pdf',
@@ -50,6 +51,7 @@ class DocumentDeleteTest extends TestCase
         Storage::disk('local')->put('documents/report.pdf', 'pdf');
 
         $document = Document::create([
+            'user_id' => auth()->id(),
             'original_name' => 'report.pdf',
             'path' => 'documents/report.pdf',
             'mime_type' => 'application/pdf',
@@ -70,6 +72,7 @@ class DocumentDeleteTest extends TestCase
     public function test_document_cannot_be_deleted_while_it_is_being_indexed(): void
     {
         $document = Document::create([
+            'user_id' => auth()->id(),
             'original_name' => 'report.pdf',
             'path' => 'documents/report.pdf',
             'mime_type' => 'application/pdf',

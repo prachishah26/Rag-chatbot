@@ -113,7 +113,7 @@ class QdrantService
      * scores 1 / (k + rank) in every list it appears in. Only ranks count, so a cosine similarity
      * and a BM25 score never need a common scale.
      *
-     * @param  array<string, string>  $filter  payload field => exact value
+     * @param  array<string, string|int[]>  $filter  payload field => exact value, or a list of allowed values
      */
     public function hybridSearch(array $dense, array $sparse, array $filter, int $pool, int $limit): array
     {
@@ -160,7 +160,7 @@ class QdrantService
     {
         $must = [];
         foreach ($filter as $field => $value) {
-            $must[] = ['key' => $field, 'match' => ['value' => $value]];
+            $must[] = ['key' => $field, 'match' => is_array($value) ? ['any' => array_values($value)] : ['value' => $value]];
         }
 
         return $must ? ['filter' => ['must' => $must]] : [];

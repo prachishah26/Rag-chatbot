@@ -2,6 +2,7 @@
 
 namespace App\Services\Rag\Retrieval;
 
+use App\Services\Rag\Indexing\ContentsListing;
 use App\Services\Rag\QdrantService;
 use App\Services\Rag\Reranker;
 use App\Services\Rag\TableParser;
@@ -33,6 +34,8 @@ class Retriever
         private CrossEncoderReranker $crossEncoder,
         private Reranker $lexical = new Reranker(),
         private TableParser $tables = new TableParser(),
+        private BroadQuestion $broad = new BroadQuestion(),
+        private ContentsListing $contents = new ContentsListing(),
     ) {}
 
     /**
@@ -52,7 +55,7 @@ class Retriever
     private function naive(string $question, array $scope): RetrievalResult
     {
         $pool = max($this->topK(), (int) config('rag.retrieval.candidate_pool'));
-        $hits = $this->qdrant->denseSearch($this->embedder->embedQuery($question), $scope, $pool);
+        $hits = $this->withoutListings($this->qdrant->denseSearch($this->embedder->embedQuery($question), $scope, $pool));
 
         return new RetrievalResult(
             $hits,
@@ -64,9 +67,12 @@ class Retriever
     private function advanced(string $question, array $scope): RetrievalResult
     {
         $pool = max($this->topK(), (int) config('rag.retrieval.candidate_pool'));
+        $broad = $this->broad->isBroad($question);
+        // An overview request names no topic: search for the summaries instead of its generic words.
+        $search = $broad ? $question.' '.BroadQuestion::SEARCH_HINT : $question;
         $filter = $this->router->route($question);
-        $dense = $this->embedder->embedQuery($question);
-        $sparse = $this->bm25->encodeQuery($question);
+        $dense = $this->embedder->embedQuery($search);
+        $sparse = $this->bm25->encodeQuery($search);
 
         $hits = $this->qdrant->hybridSearch($dense, $sparse, [...$filter, ...$scope], $pool, $pool);
 
@@ -77,9 +83,42 @@ class Retriever
             $hits = $this->qdrant->hybridSearch($dense, $sparse, $scope, $pool, $pool);
         }
 
-        $hits = $this->keepNamedTable($question, $this->rerank($question, $hits));
+        $hits = $this->rerank($search, $this->withoutListings($hits));
+        $hits = $broad ? $this->summariesFirst($hits) : $this->keepNamedTable($question, $hits);
 
-        return new RetrievalResult($hits, $this->parents($hits), $filter);
+        // Broad questions score low by nature; their summaries are still the right passages.
+        $lowRelevance = !$broad && $this->isLowRelevance($hits);
+
+        return new RetrievalResult($hits, $this->parents($hits), $filter, $lowRelevance);
+    }
+
+    /** Tables of contents name every topic, so they match broad questions while answering none. */
+    private function withoutListings(array $hits): array
+    {
+        return array_values(array_filter($hits, fn (array $hit) => !$this->contents->isListing(
+            (string) ($hit['payload']['text'] ?? ''),
+            (string) ($hit['payload']['heading_path'] ?? '')
+        )));
+    }
+
+    /** Hits from summary sections first, each group keeping its rerank order. */
+    private function summariesFirst(array $hits): array
+    {
+        $isSummary = fn (array $hit) => $this->broad->isSummaryHeading((string) ($hit['payload']['heading_path'] ?? ''));
+
+        return [...array_filter($hits, $isSummary), ...array_filter($hits, fn (array $hit) => !$isSummary($hit))];
+    }
+
+    /** The cross-encoder rates even the best hit as unrelated: the question is off topic or too vague. */
+    private function isLowRelevance(array $hits): bool
+    {
+        $min = config('rag.retrieval.min_rerank_score');
+
+        if (!$hits || $min === null || (string) config('rag.retrieval.reranker') !== 'cross_encoder') {
+            return false;
+        }
+
+        return max(array_map(fn (array $hit) => (float) ($hit['rerank_score'] ?? PHP_FLOAT_MAX), $hits)) < (float) $min;
     }
 
     private function rerank(string $question, array $hits): array

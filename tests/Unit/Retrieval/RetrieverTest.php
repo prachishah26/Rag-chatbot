@@ -342,4 +342,60 @@ class RetrieverTest extends TestCase
         );
         $this->assertSame([1, 2, 1], array_map(fn ($p) => $p->documentId, $passages));
     }
+
+    public function test_contents_listings_are_dropped_from_the_hits(): void
+    {
+        $toc = $this->hit(1, 0);
+        $toc['payload']['heading_path'] = 'Report > Contents';
+        $this->router->shouldReceive('route')->andReturn([]);
+        $this->qdrant->shouldReceive('hybridSearch')->andReturn([$toc, $this->hit(2, 1)]);
+
+        $result = $this->retriever()->retrieve('question');
+
+        $this->assertSame(['parent 1 of doc 1'], array_map(fn ($p) => $p->text, $result->passages));
+    }
+
+    public function test_a_broad_question_searches_for_summaries_and_ranks_them_first(): void
+    {
+        $question = 'List the important figures';
+        $search = $question.' '.\App\Services\Rag\Retrieval\BroadQuestion::SEARCH_HINT;
+        $summary = $this->hit(2, 1);
+        $summary['payload']['heading_path'] = 'Chapter 1 > Summary';
+
+        $this->embedder->shouldReceive('embedQuery')->once()->with($search)->andReturn(self::DENSE);
+        $this->bm25->shouldReceive('encodeQuery')->once()->with($search)->andReturn(self::SPARSE);
+        $this->router->shouldReceive('route')->with($question)->andReturn([]);
+        $this->qdrant->shouldReceive('hybridSearch')->andReturn([$this->hit(1, 0), $summary]);
+
+        $result = $this->retriever()->retrieve($question);
+
+        $this->assertSame(['parent 1 of doc 1', 'parent 0 of doc 1'], array_map(fn ($p) => $p->text, $result->passages));
+        $this->assertFalse($result->lowRelevance);
+    }
+
+    public function test_best_cross_encoder_score_below_the_minimum_is_low_relevance(): void
+    {
+        config(['rag.retrieval.reranker' => 'cross_encoder', 'rag.retrieval.min_rerank_score' => -5.0]);
+        $hits = [$this->hit(1, 0), $this->hit(2, 1)];
+        $this->router->shouldReceive('route')->andReturn([]);
+        $this->qdrant->shouldReceive('hybridSearch')->andReturn($hits);
+        $this->crossEncoder->shouldReceive('rerank')->andReturn(
+            [[...$hits[0], 'rerank_score' => -7.0], [...$hits[1], 'rerank_score' => -9.0]],
+            [[...$hits[0], 'rerank_score' => -4.0], [...$hits[1], 'rerank_score' => -9.0]],
+        );
+
+        $this->assertTrue($this->retriever()->retrieve('question')->lowRelevance);
+        $this->assertFalse($this->retriever()->retrieve('question')->lowRelevance);
+    }
+
+    public function test_no_minimum_score_never_flags_low_relevance(): void
+    {
+        config(['rag.retrieval.reranker' => 'cross_encoder', 'rag.retrieval.min_rerank_score' => null]);
+        $hits = [$this->hit(1, 0)];
+        $this->router->shouldReceive('route')->andReturn([]);
+        $this->qdrant->shouldReceive('hybridSearch')->andReturn($hits);
+        $this->crossEncoder->shouldReceive('rerank')->andReturn([[...$hits[0], 'rerank_score' => -20.0]]);
+
+        $this->assertFalse($this->retriever()->retrieve('question')->lowRelevance);
+    }
 }

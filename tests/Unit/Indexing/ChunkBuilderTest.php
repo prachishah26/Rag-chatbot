@@ -233,6 +233,21 @@ class ChunkBuilderTest extends TestCase
         }
     }
 
+    public function test_contents_listings_are_not_indexed(): void
+    {
+        $leaders = 'Global Outlook ........................ 1 Regional Outlooks ...................... 45 '
+            .'Statistical Appendix .................. 163';
+
+        $chunks = (new ChunkBuilder())->build([
+            $this->section([new Element(Element::TEXT, $leaders, 3)], ['Report', 'Overview']),
+            $this->section([new Element(Element::TEXT, 'Figure 1.1 Growth 5', 4)], ['Report', 'List of figures']),
+            $this->section([new Element(Element::TEXT, 'Growth slows to 2.5 percent.', 5)], ['Summary']),
+        ]);
+
+        $this->assertSame(['Growth slows to 2.5 percent.'], array_map(fn (Chunk $c) => $c->text, $chunks));
+        $this->assertSame([0], array_map(fn (Chunk $c) => $c->parentIndex, $chunks));
+    }
+
     public function test_no_sections_give_no_chunks(): void
     {
         $this->assertSame([], (new ChunkBuilder())->build([]));

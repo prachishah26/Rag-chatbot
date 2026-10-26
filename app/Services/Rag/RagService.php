@@ -5,10 +5,21 @@ namespace App\Services\Rag;
 use App\Services\Rag\Indexing\Element;
 use App\Services\Rag\Retrieval\RetrievalResult;
 use App\Services\Rag\Retrieval\Retriever;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class RagService
 {
     public const NOT_FOUND = 'I could not find this in the document.';
+
+    public const TOO_VAGUE = 'I could not find a passage that clearly matches this question. '
+        .'Try asking about a specific topic, figure or section of the document.';
+
+    /** Both replies mean "no answer"; evaluation counts either as a refusal. */
+    public static function isRefusal(string $answer): bool
+    {
+        return in_array($answer, [self::NOT_FOUND, self::TOO_VAGUE], true);
+    }
 
     public function __construct(
         protected Retriever $retriever,
@@ -27,6 +38,12 @@ class RagService
     /** Writes a grounded, cited answer from passages already retrieved. */
     public function answer(string $question, RetrievalResult $retrieval): array
     {
+        if ($retrieval->lowRelevance) {
+            $this->logWithheld('no passage is relevant enough', $question);
+
+            return ['answer' => self::TOO_VAGUE, 'quotes' => [], 'sources' => [], 'filter' => $retrieval->filter];
+        }
+
         $maxChars = (int) config('rag.retrieval.max_context_chars');
         $usedChars = 0;
         $contextParts = [];
@@ -67,7 +84,8 @@ class RagService
             ];
         }
 
-        $notFound = ['answer' => self::NOT_FOUND, 'quotes' => [], 'sources' => $sources, 'filter' => $retrieval->filter];
+        // Sources beside "not found" would look like they hold the answer.
+        $notFound = ['answer' => self::NOT_FOUND, 'quotes' => [], 'sources' => [], 'filter' => $retrieval->filter];
 
         if (!$contextParts) {
             return $notFound;
@@ -77,11 +95,16 @@ class RagService
 
         // The prompt asks for the exact refusal; an answer that merely uses the words is kept.
         if (str_starts_with(strtolower(trim($this->withoutSourceTags($modelAnswer), " \"*_")), strtolower(rtrim(self::NOT_FOUND, '.')))) {
+            $this->logWithheld('the model found no answer in the sources', $question);
+
             return $notFound;
         }
 
         // A model sometimes invents or misreads a figure; never show one the sources lack.
-        if (!$this->figuresAreGrounded($this->withoutSourceTags($modelAnswer), $chunks, $question)) {
+        $ungrounded = $this->ungroundedFigures($this->withoutSourceTags($modelAnswer), $chunks, $question);
+        if ($ungrounded) {
+            $this->logWithheld('figures missing from the sources', $question, ['figures' => $ungrounded]);
+
             return $notFound;
         }
 
@@ -103,8 +126,10 @@ class RagService
     /**
      * Every number in the answer (ignoring thousands separators) must appear in the sources, or in
      * the question itself so a correction can repeat it ("$874.5 million, not $900 million").
+     *
+     * @return array<int, string> the figures that fail, empty when the answer is grounded
      */
-    private function figuresAreGrounded(string $answer, array $chunks, string $question): bool
+    private function ungroundedFigures(string $answer, array $chunks, string $question): array
     {
         $available = array_flip($this->figures(implode(' ', [...array_column($chunks, 'text'), $question])));
 
@@ -119,13 +144,13 @@ class RagService
             }
         }
 
-        foreach ($derived as $figure) {
-            if (!$this->isSumOrDifference($figure, $grounded)) {
-                return false;
-            }
-        }
+        return array_values(array_filter($derived, fn (string $figure) => !$this->isSumOrDifference($figure, $grounded)));
+    }
 
-        return true;
+    /** Says which check withheld an answer, so a "not found" reply can be explained. */
+    private function logWithheld(string $reason, string $question, array $context = []): void
+    {
+        Log::info('RAG answer withheld: '.$reason.'.', ['question' => Str::limit($question, 200), ...$context]);
     }
 
     /**

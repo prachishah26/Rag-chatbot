@@ -7,6 +7,7 @@ use App\Services\Rag\RagService;
 use App\Services\Rag\Retrieval\Passage;
 use App\Services\Rag\Retrieval\RetrievalResult;
 use App\Services\Rag\Retrieval\Retriever;
+use Illuminate\Support\Facades\Log;
 use Mockery;
 use Tests\TestCase;
 
@@ -283,5 +284,46 @@ class RagServiceTest extends TestCase
         $result = (new RagService($retriever, $chat))->ask('Did auditors find weaknesses?');
 
         $this->assertSame('Auditors could not find material weaknesses in FY 2018.', $result['answer']);
+    }
+
+    public function test_low_relevance_asks_for_a_topic_without_calling_the_model(): void
+    {
+        $chat = Mockery::mock(ChatModel::class);
+        $chat->shouldNotReceive('chat');
+        $hit = $this->hit(1, -8.0, 'Contents');
+        $retriever = Mockery::mock(Retriever::class);
+        $retriever->shouldReceive('retrieve')->andReturn(new RetrievalResult([$hit], [Passage::fromHit($hit, useParent: true)], [], true));
+
+        $result = (new RagService($retriever, $chat))->ask('List the numbers');
+
+        $this->assertSame(RagService::TOO_VAGUE, $result['answer']);
+        $this->assertSame([], $result['sources']);
+        $this->assertTrue(RagService::isRefusal($result['answer']));
+    }
+
+    public function test_not_found_has_no_sources_and_logs_the_ungrounded_figures(): void
+    {
+        Log::spy();
+        $chat = Mockery::mock(ChatModel::class);
+        $chat->shouldReceive('chat')->andReturn('GPO had 35,000 employees [Source 1].');
+
+        $result = (new RagService($this->retriever([$this->hit(1, 0.8, 'GPO had 1,737 employees.')]), $chat))->ask('Staff?');
+
+        $this->assertSame(RagService::NOT_FOUND, $result['answer']);
+        $this->assertSame([], $result['sources']);
+        Log::shouldHaveReceived('info')->withArgs(
+            fn (string $message, array $context) => str_contains($message, 'figures missing') && $context['figures'] === ['35000']
+        );
+    }
+
+    public function test_model_refusal_is_logged(): void
+    {
+        Log::spy();
+        $chat = Mockery::mock(ChatModel::class);
+        $chat->shouldReceive('chat')->andReturn(RagService::NOT_FOUND);
+
+        (new RagService($this->retriever([$this->hit(1, 0.8, 'Unrelated text.')]), $chat))->ask('Who is the CEO?');
+
+        Log::shouldHaveReceived('info')->withArgs(fn (string $message) => str_contains($message, 'model found no answer'));
     }
 }

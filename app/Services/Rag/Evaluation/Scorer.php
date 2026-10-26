@@ -40,7 +40,7 @@ class Scorer
     public function isCorrect(string $answer, EvalQuestion $question): bool
     {
         if ($question->outOfScope) {
-            return $answer === RagService::NOT_FOUND;
+            return RagService::isRefusal($answer);
         }
 
         $normalized = $this->normalize($answer);

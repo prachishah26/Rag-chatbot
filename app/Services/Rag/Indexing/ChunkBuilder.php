@@ -16,6 +16,7 @@ class ChunkBuilder
     public function __construct(
         private SentenceSplitter $sentences = new SentenceSplitter(),
         private TableParser $tables = new TableParser(),
+        private ContentsListing $contents = new ContentsListing(),
     ) {}
 
     /**
@@ -31,6 +32,11 @@ class ChunkBuilder
         foreach ($sections as $section) {
             foreach ($this->parents($section) as [$type, $sentences, $page]) {
                 $parentText = $this->join($type, $sentences);
+
+                // A table of contents matches broad questions word for word but answers none of them.
+                if ($this->contents->isListing($parentText, $section->headingPathText())) {
+                    continue;
+                }
 
                 foreach ($this->children($type, $sentences) as $childText) {
                     $chunks[] = new Chunk(

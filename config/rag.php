@@ -75,6 +75,9 @@ return [
         'max_context_chars' => (int) env('RAG_MAX_CONTEXT_CHARS', 16000),
         // Reranking of fused hits: "cross_encoder" (MiniLM container), "lexical" or "none".
         'reranker' => env('RAG_RERANKER', 'cross_encoder'),
+        // Below this cross-encoder score for the best hit the question is off topic or too vague,
+        // and the user is asked to name a topic. Answerable eval questions score above -1.1.
+        'min_rerank_score' => is_numeric(env('RAG_MIN_RERANK_SCORE', -5)) ? (float) env('RAG_MIN_RERANK_SCORE', -5) : null,
         'reranker_url' => env('TEI_RERANKER_URL', 'http://127.0.0.1:8082'),
         // Used by the lexical reranker only.
         'lexical_weight' => (float) env('RAG_LEXICAL_WEIGHT', 0.3),

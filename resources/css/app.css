@@ -387,16 +387,7 @@ a.page-link:hover { background: var(--surface-2); }
 .chat-welcome { margin: auto; max-width: 560px; text-align: center; padding: 20px 0; }
 .chat-welcome .brand-mark { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 18px; }
 .chat-welcome h2 { margin: 0 0 8px; font-size: 24px; }
-.chat-welcome p { margin: 0 0 24px; color: var(--text-muted); }
-.suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
-.suggestion {
-    justify-content: flex-start; white-space: normal; text-align: left;
-    padding: 12px 14px; font-weight: 500; line-height: 1.4;
-    background: var(--surface); color: var(--text); border-color: var(--border);
-    box-shadow: none;
-}
-.suggestion svg { color: var(--primary); }
-.suggestion:hover { background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
+.chat-welcome p { margin: 0; color: var(--text-muted); }
 
 /* Messages */
 .message { display: flex; gap: 12px; max-width: 100%; animation: slide-in .2s ease-out; }
@@ -530,7 +521,6 @@ kbd { padding: 1px 5px; border: 1px solid var(--border-strong); border-bottom-wi
     .nav-inner { padding: 0 16px; }
     .brand-name, .side-nav a span { display: none; }
     .page-header { flex-direction: column; align-items: stretch; }
-    .suggestions { grid-template-columns: 1fr; }
     .message-body { max-width: 100%; }
     .message .avatar { display: none; }
     .auth-card { padding: 28px 22px; }

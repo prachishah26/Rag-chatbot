@@ -30,20 +30,7 @@
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 10.7l-6.1 1.9L12 18.5l-1.9-5.9L4 10.7l6.1-1.9z"/></svg>
                 </span>
                 <h2>Ask your documents anything</h2>
-                <p>Answers are written from the retrieved document sections, with the supporting passages shown as evidence. Questions that name a region or chapter search only that part of the report.</p>
-                <div class="suggestions">
-                    @foreach([
-                        'Summarize the key points of my documents',
-                        'What are the main risks mentioned?',
-                        'List the important figures and numbers',
-                        'What conclusions does the report draw?',
-                    ] as $suggestion)
-                        <button type="button" class="suggestion" data-suggestion="{{ $suggestion }}">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                            {{ $suggestion }}
-                        </button>
-                    @endforeach
-                </div>
+                <p>Answers are written from the retrieved document sections, with the supporting passages shown as evidence. </p>
             </div>
         </div>
 
@@ -124,13 +111,6 @@ question.addEventListener('keydown', (event) => {
         event.preventDefault();
         if (!button.disabled) form.requestSubmit();
     }
-});
-
-document.querySelectorAll('[data-suggestion]').forEach(suggestion => {
-    suggestion.addEventListener('click', () => {
-        question.value = suggestion.dataset.suggestion;
-        form.requestSubmit();
-    });
 });
 
 // Copy buttons are added to every answer, so one delegated listener handles them all.
